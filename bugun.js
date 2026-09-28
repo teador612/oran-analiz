@@ -1,5 +1,5 @@
 /* =========================================================
-   BUGÜNÜN MAÇLARI MENÜSÜ (v2 - CANLI SKOR ENTEGRASYONLU)
+   BUGÜNÜN MAÇLARI MENÜSÜ (v2 - YEDEKLİ CANLI SKOR ENTEGRASYONLU)
    index.html içindeki DATA / MARKETS değişkenlerini kullanır.
    Sekmeyi ve bölümü kendisi ekler.
 ========================================================= */
@@ -7,7 +7,7 @@
   'use strict';
 
   var START = '2026-09-01'; // istatistiklere sadece bu tarih ve sonrası dahil
-  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {}, liveScores: {} };
+  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {}, liveScores: [] };
   var LIVE_URL = 'https://teador612.github.io/mackolik1'; // Canlı skor veri kaynağı
 
   /* ---------- yardımcılar ---------- */
@@ -35,11 +35,24 @@
   function marketsMap() { return (typeof MARKETS !== 'undefined' && MARKETS) ? MARKETS : {}; }
   function defMinOdd() { return (typeof MIN_ODD !== 'undefined' && isFinite(MIN_ODD)) ? MIN_ODD : 1.4; }
 
-  /* Takım isimlerini temizleyip eşleştirmeyi kolaylaştırmak için */
-  function normalizeTeam(name) {
+  /* Takım ismini basitleştirme */
+  function cleanTeamName(name) {
     return String(name || '').toLowerCase()
+      .replace(/fc|sc|cd|de|club|atletico|deportivo|fk|sk|sporting/g, '')
       .replace(/[^a-z0-9ğüşıöç]/g, '')
       .trim();
+  }
+
+  /* Esnek Takım Eşleştirme */
+  function isTeamMatch(t1, t2) {
+    var c1 = cleanTeamName(t1);
+    var c2 = cleanTeamName(t2);
+    if (!c1 || !c2) return false;
+    if (c1 === c2) return true;
+    if (c1.length > 3 && c2.length > 3) {
+      return c1.includes(c2) || c2.includes(c1);
+    }
+    return false;
   }
 
   /* ---------- sonuç türleri (f = MS skoru, h = İY skoru) ---------- */
@@ -84,7 +97,7 @@
     '.td-info{flex:1;min-width:0}' +
     '.td-meta{font-size:11px;color:#8290a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
     '.td-teams{margin-top:3px;font-size:14px;font-weight:700;color:#f0f4fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-    '.td-score{flex:0 0 auto;font-size:15px;font-weight:800;padding:4px 8px;border-radius:6px;background:#18263a;color:#00ffcc;border:1px solid #283d5a}' +
+    '.td-score{flex:0 0 auto;font-size:13px;font-weight:800;padding:4px 8px;border-radius:6px;background:#18263a;color:#00ffcc;border:1px solid #283d5a;margin-right:4px}' +
     '.td-score.live{background:#e74c3c;color:#fff;border-color:#c0392b;animation:pulse 1.5s infinite}' +
     '@keyframes pulse{0%{opacity:1}50%{opacity:0.6}100%{opacity:1}}' +
     '.td-chip{flex:0 0 auto;font-size:11px;font-weight:800;padding:5px 8px;border-radius:6px;white-space:nowrap;' +
@@ -183,54 +196,83 @@
   });
   ['tdThr', 'tdMin', 'tdOdd'].forEach(function (id) { $(id).addEventListener('input', render); });
 
-  /* ---------- CANLI SKORLARI ÇEKME FONKSİYONU ---------- */
-  function fetchLiveScores() {
-    fetch(LIVE_URL)
-      .then(function (res) { return res.text(); })
-      .then(function (html) {
-        var parser = new DOMParser();
-        var doc = parser.parseFromString(html, 'text/html');
-        var map = {};
+  /* ---------- GELİŞMİŞ CANLI SKOR ÇEKİCİ ---------- */
+  function parseHtmlForScores(htmlString) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(htmlString, 'text/html');
+    var list = [];
 
-        // Sitedeki maç satırlarını tespit edip veriyi çekiyoruz (Maçkolik yapısına uygun olarak)
-        var matches = doc.querySelectorAll('.match-row, [data-home], .score-row, tr');
-        matches.forEach(function (el) {
-          var home = el.getAttribute('data-home') || el.querySelector('.home-team, .team-home')?.textContent;
-          var away = el.getAttribute('data-away') || el.querySelector('.away-team, .team-away')?.textContent;
-          var score = el.querySelector('.score, .match-score')?.textContent?.trim();
-          var isLive = el.querySelector('.live, .min, .status-live') !== null;
-
-          if (home && away && score) {
-            var key = normalizeTeam(home) + '_' + normalizeTeam(away);
-            map[key] = { score: score, isLive: isLive };
-          }
+    // Hem element bazı hem de düz metin bazı tarama yapıyoruz
+    var nodes = doc.querySelectorAll('tr, li, div, p');
+    nodes.forEach(function (node) {
+      var text = node.textContent || '';
+      var m = text.match(/([A-Za-z0-9\sğüşıöçĞÜŞİÖÇ\.\-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z0-9\sğüşıöçĞÜŞİÖÇ\.\-]+)/);
+      if (m && m[1].length < 35 && m[4].length < 35) {
+        list.push({
+          home: m[1].trim(),
+          away: m[4].trim(),
+          score: m[2] + ' - ' + m[3],
+          isLive: text.includes('DK') || text.includes('\'') || text.includes('Canlı') || node.querySelector('.live, .min') !== null
         });
+      }
+    });
+    return list;
+  }
 
-        CUR.liveScores = map;
-        updateScoresOnUI(); // Ekranda var olan kartların skorlarını güncelle
+  function fetchLiveScores() {
+    // 1. Yöntem: Direct Fetch (Aynı sunucu/GitHub Pages üzerinde çalışıyorsa)
+    fetch(LIVE_URL + '?v=' + Date.now())
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var res = parseHtmlForScores(html);
+        if (res.length) {
+          CUR.liveScores = res;
+          updateScoresOnUI();
+        } else {
+          throw new Error('Direct HTML parse empty, trying proxy...');
+        }
       })
-      .catch(function (err) {
-        console.log('Canlı skor çekilemedi:', err);
+      .catch(function () {
+        // 2. Yöntem: AllOrigins Proxy
+        var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(LIVE_URL + '?v=' + Date.now());
+        fetch(proxyUrl)
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.contents) {
+              CUR.liveScores = parseHtmlForScores(data.contents);
+              updateScoresOnUI();
+            }
+          })
+          .catch(function (e) {
+            console.log('Skor servislerine erişilemedi:', e);
+          });
       });
   }
 
-  /* Arayüzdeki canlı skor alanlarını günceller */
+  /* Arayüzdeki skorları tazeler */
   function updateScoresOnUI() {
+    if (!CUR.liveScores || !CUR.liveScores.length) return;
+
     CUR.items.forEach(function (it, i) {
-      var key = normalizeTeam(it.r.home) + '_' + normalizeTeam(it.r.away);
-      var matchData = CUR.liveScores[key];
+      var home = it.r.home;
+      var away = it.r.away;
+
+      var found = CUR.liveScores.find(function (s) {
+        return isTeamMatch(s.home, home) && isTeamMatch(s.away, away);
+      });
+
       var card = document.querySelector('.td-card[data-i="' + i + '"]');
       if (!card) return;
 
       var existingScore = card.querySelector('.td-score');
-      if (matchData) {
+      if (found) {
         if (!existingScore) {
           existingScore = document.createElement('div');
           var chip = card.querySelector('.td-chip');
           card.querySelector('.td-head').insertBefore(existingScore, chip);
         }
-        existingScore.className = 'td-score' + (matchData.isLive ? ' live' : '');
-        existingScore.textContent = matchData.score;
+        existingScore.className = 'td-score' + (found.isLive ? ' live' : '');
+        existingScore.textContent = found.score;
       }
     });
   }
@@ -305,7 +347,7 @@
   /* ---------- analiz ---------- */
   function analyzeEach(r, cfg) {
     var rows = [], M = marketsMap(), odds = r.odds || {};
-    var seenHistKeys = {}; // Aynı geçmiş maç havuzunu tespit etmek için
+    var seenHistKeys = {};
 
     Object.keys(odds).forEach(function (k) {
       if (!(k in M)) return;
@@ -314,12 +356,10 @@
       var hist = CUR.idxPlayed[k + '|' + n];
       if (!hist || !hist.length) return;
 
-      // Aynı geçmiş maç havuzuna sahip olanları tespit etmek için eşsiz imza oluşturulur
       var histSignature = hist.map(function (m) {
         return m.date + '_' + m.home + '_' + m.away;
       }).sort().join('|');
 
-      // Eğer aynı oran ve aynı geçmiş maç listesi daha önce eklendiyse tekrar basma
       var uniqueKey = n + '::' + histSignature;
       if (seenHistKeys[uniqueKey]) return;
       seenHistKeys[uniqueKey] = true;
@@ -490,11 +530,6 @@
       else if (a.best) chip = '<span class="td-chip" style="--h:' + hue(a.best.p) + '">' + E(a.best.d.l) + ' %' + fmtRate(a.best.p) + '</span>';
       else chip = '<span class="td-chip none">İdeal yok</span>';
 
-      // Canlı skor verisi varsa başlığa ekle
-      var matchKey = normalizeTeam(r.home) + '_' + normalizeTeam(r.away);
-      var liveData = CUR.liveScores[matchKey];
-      var scoreHtml = liveData ? '<div class="td-score' + (liveData.isLive ? ' live' : '') + '">' + E(liveData.score) + '</div>' : '';
-
       return '<div class="td-card" data-i="' + i + '">' +
         '<div class="td-head">' +
           '<button class="td-plus" type="button" aria-label="Sonuçları aç/kapat">+</button>' +
@@ -502,18 +537,15 @@
             '<div class="td-meta">' + E(r.time || '') + (r.league ? ' · ' + E(r.league) : '') + '</div>' +
             '<div class="td-teams">' + E(r.home) + ' - ' + E(r.away) + '</div>' +
           '</div>' +
-          scoreHtml +
           chip +
         '</div>' +
         '<div class="td-body"></div>' +
       '</div>';
     }).join('');
 
-    // Ekrana basıldıktan sonra canlı skorları çekip güncelle
     fetchLiveScores();
   }
 
-  // Skorların canlı olarak güncellenmesi için her 30 saniyede bir çek
   setInterval(fetchLiveScores, 30000);
 
 })();
