@@ -1,11 +1,1577 @@
-<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Açılış Oran Analizi</title><style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#e8ecf7;font:15px Inter,system-ui,-apple-system,"Segoe UI",sans-serif}.wrap{max-width:1280px;margin:auto;padding:24px 18px 60px}.hero{margin-bottom:18px}.hero h1{margin:0 0 5px;font-size:30px}.hero p,.muted{color:#9ba6bf}.tabs{display:flex;gap:8px;margin-bottom:14px}.tab,.btn{border:1px solid #33405f;border-radius:10px;background:#18223a;color:#e8ecf7;padding:11px 15px;font-weight:700;cursor:pointer}.tab.active,.btn{background:#1d6ef2;border-color:#1d6ef2}.panel,.card{background:#12192b;border:1px solid #26304a;border-radius:16px;padding:18px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:#9ba6bf}.select,.input{height:42px;border-radius:9px;border:1px solid #33405f;background:#0e1526;color:#e8ecf7;padding:0 10px;font-size:14px;width:100%}.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:14px}.btn.secondary{background:#18223a}.btn.danger{background:#3a1820;border-color:#63303a}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:#0d1425;border:1px solid #26304a;border-radius:12px;padding:13px}.stat b{display:block;font-size:22px;margin-top:4px}.barrow{display:grid;grid-template-columns:90px 1fr 95px;gap:10px;align-items:center;margin:10px 0}.bar{height:10px;background:#202a42;border-radius:20px;overflow:hidden}.fill{height:100%;background:#3d8bfd}.pill{display:inline-block;background:#1a2741;color:#b9cdfd;padding:5px 9px;border-radius:999px;margin:2px}.tablewrap{overflow:auto;max-height:560px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px;border-bottom:1px solid #27314a;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#151e33}.empty{text-align:center;padding:30px;color:#9ba6bf}.match{font-weight:700}.recommend{color:#7ee2a8;font-weight:700}.detail{display:none;background:#0d1425;padding:12px;border-radius:9px;margin-top:8px;white-space:normal}.detail.open{display:block}.plus{border:0;border-radius:50%;width:26px;height:26px;background:#3d8bfd;color:white;cursor:pointer;font-weight:800}.notice{background:#17233e;border-left:3px solid #3d8bfd;border-radius:8px;padding:11px;color:#c9d1e5;line-height:1.5}@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.grid{grid-template-columns:1fr}.barrow{grid-template-columns:70px 1fr 70px}}
-</style></head><body><div class="wrap"><div class="hero"><h1>Açılış Oran Analizi</h1><p>Excel arşivindeki açılış oranlarını birebir eşleştirir ve gerçekleşen sonuçları oransal gösterir.</p></div><div class="tabs"><button class="tab active" data-tab="filterTab">Oran filtreleme</button><button class="tab" data-tab="futureTab">Oynanmamış maçlar</button></div><section id="filterTab"><div class="panel"><h2 style="margin-top:0">Geçmiş oran filtresi</h2><div class="notice">Bir veya daha fazla açılış oranı seç. Eşleşen maçlarda MS1, MS0, MS2, KG Var ve 2,5 Üst sonuçlarını yüzde olarak görebilirsin. Birden fazla oran seçersen hepsi aynı maçta birebir eşleşmelidir.</div><div id="filterRows"></div><div class="toolbar"><button class="btn" id="addFilter">+ Oran ekle</button><button class="btn" id="runFilter">Filtrele</button><button class="btn secondary" id="clearFilter">Temizle</button></div></div><div id="filterResults"></div></section><section id="futureTab" hidden><div class="panel"><h2 style="margin-top:0">O günün oynanmamış maçları</h2><div class="notice">Seçtiğin iki oran türünün değeri gelecek maçta ve geçmişte birebir aynı olmalıdır. Başarı oranı en az %80 olan sonuçlar gösterilir. Takım adının yanındaki + butonuyla geçmiş eşleşmeleri açabilirsin.</div><div class="grid" style="margin-top:14px"><div class="field"><label>Tarih</label><select id="futureDate" class="select"></select></div><div class="field"><label>1. oran türü</label><select id="marketA" class="select"></select></div><div class="field"><label>2. oran türü</label><select id="marketB" class="select"></select></div><div class="field"><label>Minimum başarı (%)</label><input id="threshold" class="input" type="number" value="80" min="0" max="100"></div></div><div class="toolbar"><button class="btn" id="runFuture">Oynanmamış maçları analiz et</button></div></div><div id="futureResults"></div></section></div><script src="data.js"></script><script>
-const DATA=window.ORAN_DATA||[];const MARKETS={ms1:'MS1',ms0:'MS0 / Beraberlik',ms2:'MS2',kgVar:'KG Var',kgYok:'KG Yok',over25:'2,5 Üst',under25:'2,5 Alt',iy1:'İY1',iy0:'İY0',iy2:'İY2',iyOver15:'İY 1,5 Üst',iyUnder15:'İY 1,5 Alt'};const OUTCOMES={ms1:'MS1',ms0:'MS0',ms2:'MS2',kgVar:'KG Var',over25:'2,5 Üst'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const norm=s=>String(s??'').trim().replace(',','.');const pct=(n,d)=>d?((n/d)*100):0;function marketOptions(){return Object.entries(MARKETS).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')}
-function addFilter(m='ms1',v=''){const d=document.createElement('div');d.className='grid filterRow';d.style.marginTop='10px';d.innerHTML='<div class="field"><label>Oran türü</label><select class="select fm">'+marketOptions()+'</select></div><div class="field"><label>Birebir oran</label><input class="input fv" list="oddsList" placeholder="Örn. 1.85"></div><div class="field" style="justify-content:end"><button class="btn danger remove">Kaldır</button></div>';d.querySelector('.fm').value=m;d.querySelector('.fv').value=v;d.querySelector('.remove').onclick=()=>d.remove();document.getElementById('filterRows').append(d)}
-function selectedFilters(){return [...document.querySelectorAll('.filterRow')].map(r=>({m:r.querySelector('.fm').value,v:norm(r.querySelector('.fv').value)})).filter(x=>x.v)}function matching(fs,source=DATA){return source.filter(r=>fs.every(f=>norm(r.odds[f.m])===f.v))}function resultBars(rows){let html='';Object.entries(OUTCOMES).forEach(([k,label])=>{let n=rows.filter(r=>r.played&&r.results[k]===({'ms0':'X','kgVar':'VAR','over25':'ÜST'}[k]||'1')).length;let d=rows.filter(r=>r.played&&r.results[k]).length;html+='<div class="barrow"><b>'+label+'</b><div class="bar"><div class="fill" style="width:'+pct(n,d)+'%"></div></div><span>'+n+'/'+d+' (%'+pct(n,d).toFixed(1)+')</span></div>'});return html}
-function runFilter(){let fs=selectedFilters(),rows=matching(fs);let out=document.getElementById('filterResults');if(!fs.length){out.innerHTML='<div class="card empty">En az bir oran türü ve değer gir.</div>';return}let played=rows.filter(r=>r.played);let html='<div class="card"><div class="stats"><div class="stat"><span class="muted">Eşleşen satır</span><b>'+rows.length+'</b></div><div class="stat"><span class="muted">Oynanmış maç</span><b>'+played.length+'</b></div><div class="stat"><span class="muted">Filtre sayısı</span><b>'+fs.length+'</b></div><div class="stat"><span class="muted">Toplam arşiv</span><b>'+DATA.length.toLocaleString('tr-TR')+'</b></div></div></div><div class="card"><h2 style="margin-top:0">Sonuç oranları</h2>'+resultBars(rows)+'</div>';html+='<div class="card"><h2 style="margin-top:0">Eşleşen maçlar</h2><div class="tablewrap"><table><thead><tr><th>Tarih</th><th>Maç</th><th>İY</th><th>MS</th><th>Oranlar</th></tr></thead><tbody>';rows.slice(0,500).forEach(r=>html+='<tr><td>'+esc(r.date)+' '+esc(r.time)+'</td><td class="match">'+esc(r.home)+' - '+esc(r.away)+'</td><td>'+esc(r.scoreHT)+'</td><td>'+esc(r.scoreFT)+'</td><td>'+fs.map(f=>'<span class="pill">'+esc(MARKETS[f.m])+' = '+esc(f.v)+'</span>').join('')+'</td></tr>');html+='</tbody></table></div></div>';out.innerHTML=html}
-function historyFor(r,a,b){return DATA.filter(h=>h.played&&norm(h.odds[a])===norm(r.odds[a])&&norm(h.odds[b])===norm(r.odds[b]))}function recommendations(hist,threshold){return Object.entries(OUTCOMES).map(([k,label])=>{let valid=hist.filter(r=>r.results[k]);let ok=valid.filter(r=>r.results[k]===({'ms0':'X','kgVar':'VAR','over25':'ÜST'}[k]||'1')).length;return {k,label,n:ok,d:valid.length,p:pct(ok,valid.length)}}).filter(x=>x.d&&x.p>=threshold).sort((a,b)=>b.p-a.p)}
-function renderFuture(){let date=document.getElementById('futureDate').value,a=document.getElementById('marketA').value,b=document.getElementById('marketB').value,threshold=Number(document.getElementById('threshold').value)||80;let future=DATA.filter(r=>!r.played&&r.date===date),out=document.getElementById('futureResults');let html='<div class="card"><div class="stats"><div class="stat"><span class="muted">Oynanmamış maç</span><b>'+future.length+'</b></div><div class="stat"><span class="muted">Oran çifti</span><b>'+MARKETS[a]+' + '+MARKETS[b]+'</b></div><div class="stat"><span class="muted">Eşik</span><b>%'+threshold+'</b></div><div class="stat"><span class="muted">Kural</span><b>Birebir</b></div></div></div>';if(!future.length){out.innerHTML=html+'<div class="card empty">Bu tarihte oynanmamış maç bulunamadı.</div>';return}let found=0;html+='<div class="card"><h2 style="margin-top:0">%'+threshold+' ve üzeri sonuçlar</h2><div class="tablewrap"><table><thead><tr><th></th><th>Tarih / Saat</th><th>Takımlar</th><th>'+MARKETS[a]+'</th><th>'+MARKETS[b]+'</th><th>Başarılı sonuçlar</th><th>Geçmiş örnek</th></tr></thead><tbody>';future.forEach((r,i)=>{if(!r.odds[a]||!r.odds[b])return;let hist=historyFor(r,a,b),rec=recommendations(hist,threshold);if(!rec.length)return;found++;let id='detail'+i;html+='<tr><td><button class="plus" onclick="document.getElementById(\''+id+'\').classList.toggle(\'open\')">+</button></td><td>'+esc(r.date)+' '+esc(r.time)+'</td><td class="match">'+esc(r.home)+' - '+esc(r.away)+'</td><td>'+esc(r.odds[a])+'</td><td>'+esc(r.odds[b])+'</td><td>'+rec.map(x=>'<span class="pill recommend">'+x.label+' %'+x.p.toFixed(1)+' ('+x.n+'/'+x.d+')</span>').join('')+'</td><td>'+hist.length+'</td></tr><tr><td colspan="7"><div id="'+id+'" class="detail"><b>Geçmiş eşleşmeler</b><br>'+hist.slice(0,30).map(h=>esc(h.date)+' · '+esc(h.home)+' - '+esc(h.away)+' · MS '+esc(h.scoreFT)).join('<br>')+(hist.length>30?'<br>İlk 30 maç gösteriliyor.':'')+'</div></td></tr>'});html+='</tbody></table></div>';if(!found)html+='<div class="empty">Bu tarih ve oran çifti için %'+threshold+' üzerinde öneri bulunamadı.</div>';html+='</div>';out.innerHTML=html}
-function init(){document.getElementById('filterRows').innerHTML='';addFilter();document.getElementById('addFilter').onclick=()=>addFilter();document.getElementById('runFilter').onclick=runFilter;document.getElementById('clearFilter').onclick=()=>{document.getElementById('filterRows').innerHTML='';addFilter();document.getElementById('filterResults').innerHTML=''};let dates=[...new Set(DATA.filter(r=>!r.played).map(r=>r.date))].sort();let dateEl=document.getElementById('futureDate');dateEl.innerHTML=dates.map(d=>'<option>'+d+'</option>').join('');document.getElementById('marketA').innerHTML=marketOptions();document.getElementById('marketB').innerHTML=marketOptions();document.getElementById('marketA').value='ms1';document.getElementById('marketB').value='ms2';document.getElementById('runFuture').onclick=renderFuture;document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.querySelectorAll('section').forEach(s=>s.hidden=s.id!==t.dataset.tab)});let vals=[...new Set(DATA.flatMap(r=>Object.values(r.odds)).filter(Boolean))].sort();document.body.insertAdjacentHTML('beforeend','<datalist id="oddsList">'+vals.map(v=>'<option value="'+esc(v)+'">').join('')+'</datalist>')};init();
-</script></body></html>
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bugünün Maçları - Açılış Oran Analizi</title>
+
+<style>
+*{
+  box-sizing:border-box
+}
+
+body{
+  margin:0;
+  background:#0b1020;
+  color:#e8ecf7;
+  font:15px Inter,system-ui,-apple-system,"Segoe UI",sans-serif
+}
+
+.wrap{
+  max-width:1280px;
+  margin:auto;
+  padding:24px 18px 60px
+}
+
+.hero{
+  margin-bottom:18px
+}
+
+.hero h1{
+  margin:0 0 5px;
+  font-size:30px
+}
+
+.hero p{
+  color:#9ba6bf
+}
+
+/* ANA PANEL */
+
+.panel{
+  background:#12192b;
+  border:1px solid #26304a;
+  border-radius:16px;
+  padding:18px;
+  margin:14px 0
+}
+
+.notice{
+  background:#17233e;
+  border-left:3px solid #3d8bfd;
+  border-radius:8px;
+  padding:12px;
+  color:#c9d1e5;
+  line-height:1.5;
+  margin-bottom:16px
+}
+
+/* TARİH */
+
+.date-row{
+  display:flex;
+  gap:10px;
+  align-items:end;
+  flex-wrap:wrap;
+  margin-bottom:18px
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:6px
+}
+
+.field label{
+  font-size:12px;
+  color:#9ba6bf
+}
+
+.input{
+  height:42px;
+  border-radius:9px;
+  border:1px solid #33405f;
+  background:#0e1526;
+  color:#e8ecf7;
+  padding:0 10px;
+  font-size:14px
+}
+
+/* BUTON */
+
+.btn{
+  border:1px solid #33405f;
+  border-radius:10px;
+  background:#1d6ef2;
+  color:#fff;
+  padding:11px 15px;
+  font-weight:700;
+  cursor:pointer
+}
+
+.btn:hover{
+  filter:brightness(1.08)
+}
+
+/* İSTATİSTİK */
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:14px
+}
+
+.stat{
+  background:#0d1425;
+  border:1px solid #26304a;
+  border-radius:12px;
+  padding:13px
+}
+
+.stat span{
+  color:#9ba6bf;
+  font-size:12px
+}
+
+.stat b{
+  display:block;
+  font-size:22px;
+  margin-top:4px
+}
+
+/* MAÇ */
+
+.match-card{
+  background:#12192b;
+  border:1px solid #26304a;
+  border-radius:16px;
+  margin:12px 0;
+  overflow:hidden
+}
+
+.match-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:15px 16px
+}
+
+.match-plus{
+  flex:none;
+  border:0;
+  border-radius:50%;
+  width:34px;
+  height:34px;
+  background:#3d8bfd;
+  color:#fff;
+  cursor:pointer;
+  font-size:20px;
+  font-weight:800;
+  line-height:34px
+}
+
+.match-plus:hover{
+  filter:brightness(1.12)
+}
+
+.match-info{
+  flex:1
+}
+
+.match-date{
+  color:#7784a1;
+  font-size:12px;
+  margin-bottom:5px
+}
+
+.match-teams{
+  font-size:17px;
+  font-weight:800
+}
+
+.match-status{
+  color:#7ee2a8;
+  font-size:12px;
+  font-weight:700
+}
+
+/* SONUÇLAR */
+
+.recommendations{
+  display:none;
+  border-top:1px solid #26304a;
+  padding:12px
+}
+
+.recommendations.open{
+  display:block
+}
+
+.recommendation-title{
+  font-size:13px;
+  color:#9ba6bf;
+  margin-bottom:10px
+}
+
+.recommendation{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:11px 12px;
+  margin:7px 0;
+  border-radius:11px;
+  border:1px solid #26304a;
+  background:#0d1425
+}
+
+.rec-label{
+  min-width:125px;
+  font-weight:800
+}
+
+.rec-rate{
+  min-width:72px;
+  font-size:18px;
+  font-weight:900
+}
+
+.rec-count{
+  color:#aab5cc;
+  font-size:13px;
+  min-width:58px
+}
+
+.rec-odd{
+  color:#c9d1e5;
+  font-size:13px
+}
+
+/* YÜZDE RENKLERİ */
+
+.rate-high{
+  color:#39e58c
+}
+
+.rate-good{
+  color:#7ee2a8
+}
+
+.rate-medium{
+  color:#ffd166
+}
+
+.rate-low{
+  color:#ff9f68
+}
+
+.rate-very-low{
+  color:#ff6b7a
+}
+
+/* RENKLİ SONUÇ KARTLARI */
+
+.rec-ms1{
+  border-left:4px solid #3d8bfd
+}
+
+.rec-ms0{
+  border-left:4px solid #a78bfa
+}
+
+.rec-ms2{
+  border-left:4px solid #ff6b6b
+}
+
+.rec-kg{
+  border-left:4px solid #2dd4bf
+}
+
+.rec-over{
+  border-left:4px solid #f59e0b
+}
+
+.rec-iy15{
+  border-left:4px solid #ec4899
+}
+
+.rec-iy05{
+  border-left:4px solid #22c55e
+}
+
+/* GEÇMİŞ */
+
+.history{
+  margin-top:10px;
+  background:#080e1b;
+  border-radius:10px;
+  padding:10px
+}
+
+.history-title{
+  font-size:12px;
+  color:#9ba6bf;
+  margin-bottom:8px
+}
+
+.history-row{
+  display:grid;
+  grid-template-columns:90px 1fr 65px 80px;
+  gap:8px;
+  padding:8px 4px;
+  border-bottom:1px solid #202a42;
+  font-size:12px
+}
+
+.history-row:last-child{
+  border-bottom:0
+}
+
+.history-result{
+  font-weight:800
+}
+
+.empty{
+  text-align:center;
+  padding:30px;
+  color:#9ba6bf;
+  background:#12192b;
+  border:1px solid #26304a;
+  border-radius:16px;
+  margin-top:14px
+}
+
+.loading{
+  text-align:center;
+  padding:20px;
+  color:#9ba6bf
+}
+
+/* MOBİL */
+
+@media(max-width:800px){
+
+  .stats{
+    grid-template-columns:1fr
+  }
+
+  .match-teams{
+    font-size:15px
+  }
+
+  .recommendation{
+    flex-wrap:wrap
+  }
+
+  .rec-label{
+    min-width:110px
+  }
+
+  .history-row{
+    grid-template-columns:1fr 1fr;
+    gap:5px
+  }
+}
+
+@media(max-width:520px){
+
+  .wrap{
+    padding:16px 10px 40px
+  }
+
+  .hero h1{
+    font-size:24px
+  }
+
+  .date-row{
+    display:block
+  }
+
+  .date-row .field{
+    margin-bottom:10px
+  }
+
+  .input{
+    width:100%
+  }
+
+  .match-header{
+    padding:13px 10px
+  }
+
+  .recommendations{
+    padding:9px
+  }
+
+  .recommendation{
+    gap:7px
+  }
+
+  .rec-label{
+    width:100%
+  }
+
+  .rec-rate{
+    min-width:65px
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Bugünün Maçları</h1>
+    <p>
+      Açılış oranlarına göre geçmiş eşleşmelerden hesaplanan sonuç istatistikleri.
+    </p>
+  </div>
+
+  <div class="panel">
+
+    <div class="notice">
+      <strong>Bugünün Maçları</strong><br><br>
+
+      Seçilen tarihteki oynanmamış maçlar gösterilir.
+      Maçın yanındaki <strong>+</strong> butonuna bastığında,
+      açılış oranlarıyla geçmişte eşleşen maçlardan hesaplanan
+      sonuç istatistikleri gösterilir.
+      <br><br>
+
+      İstatistikler başarı yüzdesine göre sıralanır.
+      Herhangi bir minimum başarı yüzdesi veya minimum oran şartı uygulanmaz.
+      <br><br>
+
+      Desteklenen sonuçlar:
+      <strong>MS1, MS0, MS2, KG Var, 2,5 Üst, İY 1,5 Üst, İY 0,5 Üst.</strong>
+    </div>
+
+    <div class="date-row">
+
+      <div class="field">
+        <label for="matchDate">Maç günü</label>
+        <input
+          id="matchDate"
+          class="input"
+          type="date"
+        >
+      </div>
+
+      <button
+        class="btn"
+        id="showMatches"
+        type="button"
+      >
+        Maçları Göster
+      </button>
+
+    </div>
+
+    <div id="stats"></div>
+
+  </div>
+
+  <div id="matches"></div>
+
+</div>
+
+<script src="data.js"></script>
+
+<script>
+
+/* =========================================================
+   VERİ
+   ========================================================= */
+
+const DATA = Array.isArray(window.ORAN_DATA)
+  ? window.ORAN_DATA
+  : [];
+
+
+/* =========================================================
+   MARKETLER
+   ========================================================= */
+
+const TODAY_MARKETS = [
+
+  {
+    key:'ms1',
+    label:'MS1',
+    target:'1',
+    css:'rec-ms1'
+  },
+
+  {
+    key:'ms0',
+    label:'MS0 / Beraberlik',
+    target:'X',
+    css:'rec-ms0'
+  },
+
+  {
+    key:'ms2',
+    label:'MS2',
+    target:'2',
+    css:'rec-ms2'
+  },
+
+  {
+    key:'kgVar',
+    label:'KG Var',
+    target:'VAR',
+    css:'rec-kg'
+  },
+
+  {
+    key:'over25',
+    label:'2,5 Üst',
+    target:'ÜST',
+    css:'rec-over'
+  },
+
+  {
+    key:'iyOver15',
+    label:'İY 1,5 Üst',
+    target:'ÜST',
+    css:'rec-iy15'
+  },
+
+  {
+    key:'iyOver05',
+    label:'İY 0,5 Üst',
+    target:'ÜST',
+    css:'rec-iy05'
+  }
+
+];
+
+
+/* =========================================================
+   YARDIMCI FONKSİYONLAR
+   ========================================================= */
+
+function esc(value){
+
+  return String(value ?? '')
+    .replace(/[&<>"']/g, char => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[char]));
+
+}
+
+
+function normalize(value){
+
+  return String(value ?? '')
+    .trim()
+    .replace(',', '.');
+
+}
+
+
+function toNumber(value){
+
+  const number = Number(
+    String(value ?? '')
+      .replace(',', '.')
+      .trim()
+  );
+
+  return Number.isFinite(number)
+    ? number
+    : NaN;
+
+}
+
+
+function percentage(success,total){
+
+  if (!total){
+    return 0;
+  }
+
+  return (success / total) * 100;
+
+}
+
+
+/* =========================================================
+   TARİH
+   ========================================================= */
+
+function localTodayISO(){
+
+  const now = new Date();
+
+  const year = now.getFullYear();
+
+  const month = String(
+    now.getMonth() + 1
+  ).padStart(2,'0');
+
+  const day = String(
+    now.getDate()
+  ).padStart(2,'0');
+
+  return `${year}-${month}-${day}`;
+
+}
+
+
+function formatDate(date){
+
+  if (!date){
+    return '';
+  }
+
+  const parts = String(date).split('-');
+
+  if (parts.length === 3){
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+
+  return date;
+
+}
+
+
+/* =========================================================
+   VERİ ALANLARI
+   ========================================================= */
+
+function getDate(row){
+
+  return String(
+    row?.date ??
+    row?.tarih ??
+    ''
+  ).trim();
+
+}
+
+
+function getHome(row){
+
+  return String(
+    row?.home ??
+    row?.homeTeam ??
+    row?.ev ??
+    ''
+  ).trim();
+
+}
+
+
+function getAway(row){
+
+  return String(
+    row?.away ??
+    row?.awayTeam ??
+    row?.deplasman ??
+    ''
+  ).trim();
+
+}
+
+
+function getTime(row){
+
+  return String(
+    row?.time ??
+    row?.saat ??
+    ''
+  ).trim();
+
+}
+
+
+function getScore(row){
+
+  if (row?.scoreFT){
+    return String(row.scoreFT).trim();
+  }
+
+  if (row?.score){
+    return String(row.score).trim();
+  }
+
+  if (row?.ft){
+    return String(row.ft).trim();
+  }
+
+  return '';
+}
+
+
+function getHalfScore(row){
+
+  if (row?.scoreHT){
+    return String(row.scoreHT).trim();
+  }
+
+  if (row?.halfScore){
+    return String(row.halfScore).trim();
+  }
+
+  if (row?.ht){
+    return String(row.ht).trim();
+  }
+
+  return '';
+}
+
+
+/* =========================================================
+   OYNANMIŞ KONTROLÜ
+   ========================================================= */
+
+function isPlayed(row){
+
+  if (row?.played === true){
+    return true;
+  }
+
+  if (row?.played === false){
+    return false;
+  }
+
+  return Boolean(getScore(row));
+
+}
+
+
+/* =========================================================
+   SKOR PARSE
+   ========================================================= */
+
+function parseScore(value){
+
+  const match = String(value ?? '')
+    .match(/(\d+)\s*[-:]\s*(\d+)/);
+
+  if (!match){
+    return null;
+  }
+
+  return {
+    home:Number(match[1]),
+    away:Number(match[2])
+  };
+
+}
+
+
+/* =========================================================
+   AÇILIŞ ORANI
+   ========================================================= */
+
+function getOdd(row,key){
+
+  const directKeys = [
+
+    key,
+
+    `${key}Odd`,
+    `${key}Odds`,
+    `${key}_odd`,
+    `${key}_odds`,
+
+    key === 'ms1' ? 'MS1' : '',
+    key === 'ms0' ? 'MS0' : '',
+    key === 'ms2' ? 'MS2' : '',
+
+    key === 'kgVar' ? 'KG Var' : '',
+    key === 'over25' ? '2,5 Üst' : '',
+
+    key === 'iyOver15' ? 'İY 1,5 Üst' : '',
+    key === 'iyOver05' ? 'İY 0,5 Üst' : ''
+
+  ].filter(Boolean);
+
+  for (const field of directKeys){
+
+    if (
+      row &&
+      row[field] !== undefined &&
+      row[field] !== null &&
+      String(row[field]).trim() !== ''
+    ){
+      const number = toNumber(row[field]);
+
+      if (Number.isFinite(number)){
+        return number;
+      }
+    }
+
+  }
+
+
+  if (row?.odds && typeof row.odds === 'object'){
+
+    const aliases = {
+
+      ms1:[
+        'ms1',
+        'MS1',
+        '1'
+      ],
+
+      ms0:[
+        'ms0',
+        'MS0',
+        'X',
+        'Beraberlik'
+      ],
+
+      ms2:[
+        'ms2',
+        'MS2',
+        '2'
+      ],
+
+      kgVar:[
+        'kgVar',
+        'KG Var',
+        'kg_var',
+        'KGVAR'
+      ],
+
+      over25:[
+        'over25',
+        '2,5 Üst',
+        '2.5 Üst'
+      ],
+
+      iyOver15:[
+        'iyOver15',
+        'İY 1,5 Üst',
+        'iy15',
+        'IY15'
+      ],
+
+      iyOver05:[
+        'iyOver05',
+        'İY 0,5 Üst',
+        'iy05',
+        'IY05'
+      ]
+
+    };
+
+    const keys = aliases[key] || [key];
+
+    for (const alias of keys){
+
+      if (
+        row.odds[alias] !== undefined &&
+        row.odds[alias] !== null
+      ){
+
+        const number = toNumber(row.odds[alias]);
+
+        if (Number.isFinite(number)){
+          return number;
+        }
+
+      }
+
+    }
+
+  }
+
+  return NaN;
+
+}
+
+
+/* =========================================================
+   SONUÇ HESAPLA
+   ========================================================= */
+
+function getResult(row,key){
+
+  /*
+   * Önce data.js içindeki hazır sonuç kullanılır.
+   */
+
+  if (
+    row?.results &&
+    row.results[key] !== undefined &&
+    row.results[key] !== null &&
+    String(row.results[key]).trim() !== ''
+  ){
+
+    return String(row.results[key])
+      .trim()
+      .toUpperCase();
+
+  }
+
+
+  const fullScore = parseScore(
+    getScore(row)
+  );
+
+
+  /*
+   * MAÇ SONUCU
+   */
+
+  if (
+    key === 'ms1' ||
+    key === 'ms0' ||
+    key === 'ms2' ||
+    key === 'kgVar' ||
+    key === 'over25'
+  ){
+
+    if (!fullScore){
+      return '';
+    }
+
+    if (key === 'ms1'){
+      return fullScore.home > fullScore.away
+        ? '1'
+        : '';
+    }
+
+    if (key === 'ms0'){
+      return fullScore.home === fullScore.away
+        ? 'X'
+        : '';
+    }
+
+    if (key === 'ms2'){
+      return fullScore.away > fullScore.home
+        ? '2'
+        : '';
+    }
+
+    if (key === 'kgVar'){
+      return (
+        fullScore.home > 0 &&
+        fullScore.away > 0
+      )
+        ? 'VAR'
+        : '';
+    }
+
+    if (key === 'over25'){
+      return (
+        fullScore.home +
+        fullScore.away >= 3
+      )
+        ? 'ÜST'
+        : '';
+    }
+
+  }
+
+
+  /*
+   * İLK YARI
+   */
+
+  if (
+    key === 'iyOver05' ||
+    key === 'iyOver15'
+  ){
+
+    const halfScore = parseScore(
+      getHalfScore(row)
+    );
+
+    if (!halfScore){
+      return '';
+    }
+
+    const total =
+      halfScore.home +
+      halfScore.away;
+
+    if (key === 'iyOver05'){
+      return total >= 1
+        ? 'ÜST'
+        : '';
+    }
+
+    if (key === 'iyOver15'){
+      return total >= 2
+        ? 'ÜST'
+        : '';
+    }
+
+  }
+
+  return '';
+
+}
+
+
+/* =========================================================
+   YÜZDE RENGİ
+   ========================================================= */
+
+function rateClass(rate){
+
+  if (rate >= 80){
+    return 'rate-high';
+  }
+
+  if (rate >= 70){
+    return 'rate-good';
+  }
+
+  if (rate >= 60){
+    return 'rate-medium';
+  }
+
+  if (rate >= 50){
+    return 'rate-low';
+  }
+
+  return 'rate-very-low';
+
+}
+
+
+/* =========================================================
+   GEÇMİŞ EŞLEŞMELER
+   ========================================================= */
+
+function historyForMatch(match,market){
+
+  const currentOdd =
+    getOdd(match,market.key);
+
+  if (!Number.isFinite(currentOdd)){
+    return [];
+  }
+
+  return DATA.filter(row => {
+
+    if (!isPlayed(row)){
+      return false;
+    }
+
+    const historicalOdd =
+      getOdd(row,market.key);
+
+    if (!Number.isFinite(historicalOdd)){
+      return false;
+    }
+
+    return historicalOdd === currentOdd;
+
+  });
+
+}
+
+
+/* =========================================================
+   ÖNERİLER
+   ========================================================= */
+
+function getRecommendations(match){
+
+  const recommendations = [];
+
+  TODAY_MARKETS.forEach(market => {
+
+    const odd =
+      getOdd(match,market.key);
+
+    if (!Number.isFinite(odd)){
+      return;
+    }
+
+    const history =
+      historyForMatch(match,market);
+
+    if (!history.length){
+      return;
+    }
+
+    const valid =
+      history.filter(row =>
+        getResult(row,market.key)
+      );
+
+    if (!valid.length){
+      return;
+    }
+
+    const success =
+      valid.filter(row =>
+        getResult(row,market.key) === market.target
+      ).length;
+
+    const rate =
+      percentage(
+        success,
+        valid.length
+      );
+
+    recommendations.push({
+
+      key:market.key,
+
+      label:market.label,
+
+      odd:odd,
+
+      success:success,
+
+      total:valid.length,
+
+      rate:rate,
+
+      history:history,
+
+      css:market.css
+
+    });
+
+  });
+
+
+  /*
+   * En yüksek yüzdeden en düşüğe.
+   *
+   * Burada hiçbir alt sınır yok.
+   */
+
+  recommendations.sort(
+    (a,b) => b.rate - a.rate
+  );
+
+  return recommendations;
+
+}
+
+
+/* =========================================================
+   GEÇMİŞ MAÇLAR HTML
+   ========================================================= */
+
+function historyHTML(item){
+
+  if (!item.history.length){
+    return '';
+  }
+
+  const rows =
+    item.history
+      .slice(0,50)
+      .map(row => {
+
+        const result =
+          getResult(row,item.key);
+
+        return `
+          <div class="history-row">
+
+            <span>
+              ${esc(formatDate(getDate(row)))}
+            </span>
+
+            <strong>
+              ${esc(getHome(row))}
+              -
+              ${esc(getAway(row))}
+            </strong>
+
+            <span>
+              ${esc(getScore(row) || '-')}
+            </span>
+
+            <span class="history-result">
+              ${esc(result || '-')}
+            </span>
+
+          </div>
+        `;
+
+      })
+      .join('');
+
+
+  return `
+    <div class="history">
+
+      <div class="history-title">
+        Geçmiş eşleşmeler:
+        <strong>${item.history.length}</strong> maç
+      </div>
+
+      ${rows}
+
+      ${
+        item.history.length > 50
+          ? `
+            <div class="history-title" style="margin-top:8px">
+              İlk 50 geçmiş maç gösteriliyor.
+            </div>
+          `
+          : ''
+      }
+
+    </div>
+  `;
+
+}
+
+
+/* =========================================================
+   MAÇI AÇ / KAPAT
+   ========================================================= */
+
+function toggleRecommendations(id,button){
+
+  const element =
+    document.getElementById(id);
+
+  if (!element){
+    return;
+  }
+
+  const open =
+    element.classList.toggle('open');
+
+  button.textContent =
+    open ? '−' : '+';
+
+}
+
+
+/* =========================================================
+   MAÇLARI GETİR
+   ========================================================= */
+
+function getMatchesForDate(date){
+
+  return DATA.filter(row => {
+
+    return (
+      getDate(row) === date &&
+      !isPlayed(row)
+    );
+
+  });
+
+}
+
+
+/* =========================================================
+   BUGÜNÜN MAÇLARI
+   ========================================================= */
+
+function renderMatches(){
+
+  const date =
+    document.getElementById('matchDate').value;
+
+  const container =
+    document.getElementById('matches');
+
+  const stats =
+    document.getElementById('stats');
+
+  if (!date){
+
+    container.innerHTML = `
+      <div class="empty">
+        Lütfen bir maç günü seç.
+      </div>
+    `;
+
+    stats.innerHTML = '';
+
+    return;
+  }
+
+
+  const matches =
+    getMatchesForDate(date);
+
+
+  /*
+   * İSTATİSTİK
+   */
+
+  let matchesWithRecommendation = 0;
+
+  let totalRecommendations = 0;
+
+  matches.forEach(match => {
+
+    const recommendations =
+      getRecommendations(match);
+
+    if (recommendations.length){
+
+      matchesWithRecommendation++;
+
+      totalRecommendations +=
+        recommendations.length;
+
+    }
+
+  });
+
+
+  stats.innerHTML = `
+
+    <div class="stats">
+
+      <div class="stat">
+        <span>Seçilen gün</span>
+        <b>${esc(formatDate(date))}</b>
+      </div>
+
+      <div class="stat">
+        <span>Oynanmamış maç</span>
+        <b>${matches.length}</b>
+      </div>
+
+      <div class="stat">
+        <span>İstatistik bulunan maç</span>
+        <b>${matchesWithRecommendation}</b>
+      </div>
+
+    </div>
+
+  `;
+
+
+  if (!matches.length){
+
+    container.innerHTML = `
+      <div class="empty">
+        <strong>${esc(formatDate(date))}</strong>
+        tarihinde oynanmamış maç bulunamadı.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  /*
+   * MAÇLAR
+   */
+
+  container.innerHTML =
+    matches.map((match,index) => {
+
+      const recommendations =
+        getRecommendations(match);
+
+      const detailId =
+        `recommendations-${index}`;
+
+
+      let recommendationsHTML = '';
+
+
+      if (!recommendations.length){
+
+        recommendationsHTML = `
+
+          <div class="recommendations" id="${detailId}">
+
+            <div class="recommendation-title">
+              Bu maçın açılış oranlarıyla eşleşen
+              yeterli geçmiş sonuç bulunamadı.
+            </div>
+
+          </div>
+
+        `;
+
+      }else{
+
+        recommendationsHTML = `
+
+          <div
+            class="recommendations"
+            id="${detailId}"
+          >
+
+            <div class="recommendation-title">
+              Geçmiş eşleşmelere göre sonuç istatistikleri
+            </div>
+
+            ${
+              recommendations.map(item => `
+
+                <div class="recommendation ${item.css}">
+
+                  <span class="rec-label">
+                    ${esc(item.label)}
+                  </span>
+
+                  <span class="rec-rate ${rateClass(item.rate)}">
+                    %${item.rate.toFixed(1)}
+                  </span>
+
+                  <span class="rec-count">
+                    ${item.success}/${item.total}
+                  </span>
+
+                  <span class="rec-odd">
+                    Oran ${item.odd}
+                  </span>
+
+                </div>
+
+                ${historyHTML(item)}
+
+              `).join('')
+            }
+
+          </div>
+
+        `;
+
+      }
+
+
+      return `
+
+        <div class="match-card">
+
+          <div class="match-header">
+
+            <button
+              type="button"
+              class="match-plus"
+              onclick="
+                toggleRecommendations(
+                  '${detailId}',
+                  this
+                )
+              "
+              aria-expanded="false"
+            >
+              +
+            </button>
+
+            <div class="match-info">
+
+              <div class="match-date">
+                ${esc(formatDate(getDate(match)))}
+                ${getTime(match)
+                  ? ' · ' + esc(getTime(match))
+                  : ''
+                }
+              </div>
+
+              <div class="match-teams">
+                ${esc(getHome(match))}
+                -
+                ${esc(getAway(match))}
+              </div>
+
+            </div>
+
+            ${
+              recommendations.length
+                ? `
+                  <div class="match-status">
+                    ${recommendations.length} öneri
+                  </div>
+                `
+                : ''
+            }
+
+          </div>
+
+          ${recommendationsHTML}
+
+        </div>
+
+      `;
+
+    }).join('');
+
+}
+
+
+/* =========================================================
+   TARİH LİSTESİ
+   ========================================================= */
+
+function initDate(){
+
+  const input =
+    document.getElementById('matchDate');
+
+  const availableDates =
+    [
+      ...new Set(
+        DATA
+          .filter(row => !isPlayed(row))
+          .map(row => getDate(row))
+          .filter(Boolean)
+      )
+    ].sort();
+
+
+  const today =
+    localTodayISO();
+
+
+  /*
+   * Önce gerçek bugünün tarihi varsa onu seç.
+   * Yoksa data içindeki ilk tarihi seç.
+   */
+
+  if (availableDates.includes(today)){
+
+    input.value = today;
+
+  }else if (availableDates.length){
+
+    input.value = availableDates[0];
+
+  }else{
+
+    input.value = today;
+
+  }
+
+}
+
+
+/* =========================================================
+   BAŞLAT
+   ========================================================= */
+
+function init(){
+
+  initDate();
+
+  document
+    .getElementById('showMatches')
+    .addEventListener(
+      'click',
+      renderMatches
+    );
+
+
+  document
+    .getElementById('matchDate')
+    .addEventListener(
+      'change',
+      renderMatches
+    );
+
+
+  renderMatches();
+
+}
+
+
+init();
+
+</script>
+
+</body>
+</html>
