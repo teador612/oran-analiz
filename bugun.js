@@ -254,6 +254,8 @@
     }).join('');
   }
 
-  /* Bu menüyü açılışta varsayılan yapmak istersen alttaki satırın başındaki // işaretini kaldır */
-  // showTab('todayTab'); render();
+  /* başlangıçta render'ı çağır */
+  if (typeof DATA !== 'undefined' && Array.isArray(DATA) && DATA.length > 0) {
+    setTimeout(function () { render(); }, 100);
+  }
 })();
