@@ -1,5 +1,5 @@
 /* =========================================================
-   BUGÜNÜN MAÇLARI MENÜSÜ (v2 - YEDEKLİ CANLI SKOR ENTEGRASYONLU)
+   BUGÜNÜN MAÇLARI MENÜSÜ (v2 - JSON CANLI SKOR ENTEGRASYONLU)
    index.html içindeki DATA / MARKETS değişkenlerini kullanır.
    Sekmeyi ve bölümü kendisi ekler.
 ========================================================= */
@@ -7,8 +7,9 @@
   'use strict';
 
   var START = '2026-09-01'; // istatistiklere sadece bu tarih ve sonrası dahil
-  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {}, liveScores: [] };
-  var LIVE_URL = 'https://teador612.github.io/mackolik1'; // Canlı skor veri kaynağı
+  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {}, liveScores: {} };
+  // Maçkolik verinizin ham JSON adresi
+  var LIVE_JSON_URL = 'https://teador612.github.io/mackolik1/data/matches.json';
 
   /* ---------- yardımcılar ---------- */
   function $(id) { return document.getElementById(id); }
@@ -35,7 +36,7 @@
   function marketsMap() { return (typeof MARKETS !== 'undefined' && MARKETS) ? MARKETS : {}; }
   function defMinOdd() { return (typeof MIN_ODD !== 'undefined' && isFinite(MIN_ODD)) ? MIN_ODD : 1.4; }
 
-  /* Takım ismini basitleştirme */
+  /* Takım isimlerini basitleştirip esnek eşleştirme için temizler */
   function cleanTeamName(name) {
     return String(name || '').toLowerCase()
       .replace(/fc|sc|cd|de|club|atletico|deportivo|fk|sk|sporting/g, '')
@@ -43,7 +44,6 @@
       .trim();
   }
 
-  /* Esnek Takım Eşleştirme */
   function isTeamMatch(t1, t2) {
     var c1 = cleanTeamName(t1);
     var c2 = cleanTeamName(t2);
@@ -196,56 +196,34 @@
   });
   ['tdThr', 'tdMin', 'tdOdd'].forEach(function (id) { $(id).addEventListener('input', render); });
 
-  /* ---------- GELİŞMİŞ CANLI SKOR ÇEKİCİ ---------- */
-  function parseHtmlForScores(htmlString) {
-    var parser = new DOMParser();
-    var doc = parser.parseFromString(htmlString, 'text/html');
-    var list = [];
-
-    // Hem element bazı hem de düz metin bazı tarama yapıyoruz
-    var nodes = doc.querySelectorAll('tr, li, div, p');
-    nodes.forEach(function (node) {
-      var text = node.textContent || '';
-      var m = text.match(/([A-Za-z0-9\sğüşıöçĞÜŞİÖÇ\.\-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z0-9\sğüşıöçĞÜŞİÖÇ\.\-]+)/);
-      if (m && m[1].length < 35 && m[4].length < 35) {
-        list.push({
-          home: m[1].trim(),
-          away: m[4].trim(),
-          score: m[2] + ' - ' + m[3],
-          isLive: text.includes('DK') || text.includes('\'') || text.includes('Canlı') || node.querySelector('.live, .min') !== null
-        });
-      }
-    });
-    return list;
-  }
-
+  /* ---------- JSON ÜZERİNDEN DOĞRUDAN CANLI SKOR ÇEKİCİ ---------- */
   function fetchLiveScores() {
-    // 1. Yöntem: Direct Fetch (Aynı sunucu/GitHub Pages üzerinde çalışıyorsa)
-    fetch(LIVE_URL + '?v=' + Date.now())
-      .then(function (r) { return r.text(); })
-      .then(function (html) {
-        var res = parseHtmlForScores(html);
-        if (res.length) {
-          CUR.liveScores = res;
-          updateScoresOnUI();
-        } else {
-          throw new Error('Direct HTML parse empty, trying proxy...');
-        }
+    fetch(LIVE_JSON_URL + '?_=' + Date.now(), { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('JSON yüklenemedi');
+        return res.json();
       })
-      .catch(function () {
-        // 2. Yöntem: AllOrigins Proxy
-        var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(LIVE_URL + '?v=' + Date.now());
-        fetch(proxyUrl)
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (data && data.contents) {
-              CUR.liveScores = parseHtmlForScores(data.contents);
-              updateScoresOnUI();
-            }
-          })
-          .catch(function (e) {
-            console.log('Skor servislerine erişilemedi:', e);
-          });
+      .then(function (data) {
+        var matches = data.matches || [];
+        var scores = [];
+
+        matches.forEach(function (m) {
+          // Eğer maçta skor verisi varsa (home ve away null/tanımsız değilse)
+          if (m.score && (m.score.home !== null && m.score.home !== undefined)) {
+            scores.push({
+              home: m.home,
+              away: m.away,
+              score: m.score.home + ' - ' + m.score.away,
+              code: m.code
+            });
+          }
+        });
+
+        CUR.liveScores = scores;
+        updateScoresOnUI();
+      })
+      .catch(function (err) {
+        console.log('Maçkolik JSON skor hatası:', err);
       });
   }
 
@@ -257,8 +235,10 @@
       var home = it.r.home;
       var away = it.r.away;
 
+      // Önce kod veya isim benzerliğine göre skoru bul
       var found = CUR.liveScores.find(function (s) {
-        return isTeamMatch(s.home, home) && isTeamMatch(s.away, away);
+        return (it.r.code && String(s.code) === String(it.r.code)) || 
+               (isTeamMatch(s.home, home) && isTeamMatch(s.away, away));
       });
 
       var card = document.querySelector('.td-card[data-i="' + i + '"]');
@@ -271,7 +251,7 @@
           var chip = card.querySelector('.td-chip');
           card.querySelector('.td-head').insertBefore(existingScore, chip);
         }
-        existingScore.className = 'td-score' + (found.isLive ? ' live' : '');
+        existingScore.className = 'td-score';
         existingScore.textContent = found.score;
       }
     });
@@ -546,6 +526,7 @@
     fetchLiveScores();
   }
 
+  // Her 30 saniyede bir JSON dosyasını çekip skorları günceller
   setInterval(fetchLiveScores, 30000);
 
 })();
