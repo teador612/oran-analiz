@@ -1,5 +1,5 @@
 /* =========================================================
-   BUGÜNÜN MAÇLARI MENÜSÜ (v2)
+   BUGÜNÜN MAÇLARI MENÜSÜ (v2 - CANLI SKOR ENTEGRASYONLU)
    index.html içindeki DATA / MARKETS değişkenlerini kullanır.
    Sekmeyi ve bölümü kendisi ekler.
 ========================================================= */
@@ -7,7 +7,8 @@
   'use strict';
 
   var START = '2026-09-01'; // istatistiklere sadece bu tarih ve sonrası dahil
-  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {} };
+  var CUR = { items: [], idxPlayed: {}, idxUnp: {}, cfg: {}, liveScores: {} };
+  var LIVE_URL = 'https://teador612.github.io/mackolik1'; // Canlı skor veri kaynağı
 
   /* ---------- yardımcılar ---------- */
   function $(id) { return document.getElementById(id); }
@@ -33,6 +34,13 @@
   function hue(p) { return Math.round(p * 1.2); }
   function marketsMap() { return (typeof MARKETS !== 'undefined' && MARKETS) ? MARKETS : {}; }
   function defMinOdd() { return (typeof MIN_ODD !== 'undefined' && isFinite(MIN_ODD)) ? MIN_ODD : 1.4; }
+
+  /* Takım isimlerini temizleyip eşleştirmeyi kolaylaştırmak için */
+  function normalizeTeam(name) {
+    return String(name || '').toLowerCase()
+      .replace(/[^a-z0-9ğüşıöç]/g, '')
+      .trim();
+  }
 
   /* ---------- sonuç türleri (f = MS skoru, h = İY skoru) ---------- */
   var RES = [
@@ -76,6 +84,9 @@
     '.td-info{flex:1;min-width:0}' +
     '.td-meta{font-size:11px;color:#8290a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
     '.td-teams{margin-top:3px;font-size:14px;font-weight:700;color:#f0f4fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.td-score{flex:0 0 auto;font-size:15px;font-weight:800;padding:4px 8px;border-radius:6px;background:#18263a;color:#00ffcc;border:1px solid #283d5a}' +
+    '.td-score.live{background:#e74c3c;color:#fff;border-color:#c0392b;animation:pulse 1.5s infinite}' +
+    '@keyframes pulse{0%{opacity:1}50%{opacity:0.6}100%{opacity:1}}' +
     '.td-chip{flex:0 0 auto;font-size:11px;font-weight:800;padding:5px 8px;border-radius:6px;white-space:nowrap;' +
       'color:hsl(var(--h),85%,66%);background:hsl(var(--h),60%,13%);border:1px solid hsl(var(--h),55%,30%)}' +
     '.td-chip.none{color:#7d8aa3;background:#111b2d;border-color:#1d2a3d;font-weight:600}' +
@@ -171,6 +182,58 @@
     $(id).addEventListener('change', render);
   });
   ['tdThr', 'tdMin', 'tdOdd'].forEach(function (id) { $(id).addEventListener('input', render); });
+
+  /* ---------- CANLI SKORLARI ÇEKME FONKSİYONU ---------- */
+  function fetchLiveScores() {
+    fetch(LIVE_URL)
+      .then(function (res) { return res.text(); })
+      .then(function (html) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        var map = {};
+
+        // Sitedeki maç satırlarını tespit edip veriyi çekiyoruz (Maçkolik yapısına uygun olarak)
+        var matches = doc.querySelectorAll('.match-row, [data-home], .score-row, tr');
+        matches.forEach(function (el) {
+          var home = el.getAttribute('data-home') || el.querySelector('.home-team, .team-home')?.textContent;
+          var away = el.getAttribute('data-away') || el.querySelector('.away-team, .team-away')?.textContent;
+          var score = el.querySelector('.score, .match-score')?.textContent?.trim();
+          var isLive = el.querySelector('.live, .min, .status-live') !== null;
+
+          if (home && away && score) {
+            var key = normalizeTeam(home) + '_' + normalizeTeam(away);
+            map[key] = { score: score, isLive: isLive };
+          }
+        });
+
+        CUR.liveScores = map;
+        updateScoresOnUI(); // Ekranda var olan kartların skorlarını güncelle
+      })
+      .catch(function (err) {
+        console.log('Canlı skor çekilemedi:', err);
+      });
+  }
+
+  /* Arayüzdeki canlı skor alanlarını günceller */
+  function updateScoresOnUI() {
+    CUR.items.forEach(function (it, i) {
+      var key = normalizeTeam(it.r.home) + '_' + normalizeTeam(it.r.away);
+      var matchData = CUR.liveScores[key];
+      var card = document.querySelector('.td-card[data-i="' + i + '"]');
+      if (!card) return;
+
+      var existingScore = card.querySelector('.td-score');
+      if (matchData) {
+        if (!existingScore) {
+          existingScore = document.createElement('div');
+          var chip = card.querySelector('.td-chip');
+          card.querySelector('.td-head').insertBefore(existingScore, chip);
+        }
+        existingScore.className = 'td-score' + (matchData.isLive ? ' live' : '');
+        existingScore.textContent = matchData.score;
+      }
+    });
+  }
 
   /* tıklamalar */
   sec.addEventListener('click', function (e) {
@@ -427,19 +490,30 @@
       else if (a.best) chip = '<span class="td-chip" style="--h:' + hue(a.best.p) + '">' + E(a.best.d.l) + ' %' + fmtRate(a.best.p) + '</span>';
       else chip = '<span class="td-chip none">İdeal yok</span>';
 
+      // Canlı skor verisi varsa başlığa ekle
+      var matchKey = normalizeTeam(r.home) + '_' + normalizeTeam(r.away);
+      var liveData = CUR.liveScores[matchKey];
+      var scoreHtml = liveData ? '<div class="td-score' + (liveData.isLive ? ' live' : '') + '">' + E(liveData.score) + '</div>' : '';
+
       return '<div class="td-card" data-i="' + i + '">' +
         '<div class="td-head">' +
           '<button class="td-plus" type="button" aria-label="Sonuçları aç/kapat">+</button>' +
           '<div class="td-info">' +
             '<div class="td-meta">' + E(r.time || '') + (r.league ? ' · ' + E(r.league) : '') + '</div>' +
             '<div class="td-teams">' + E(r.home) + ' - ' + E(r.away) + '</div>' +
-          '</div>' + chip +
+          '</div>' +
+          scoreHtml +
+          chip +
         '</div>' +
         '<div class="td-body"></div>' +
       '</div>';
     }).join('');
+
+    // Ekrana basıldıktan sonra canlı skorları çekip güncelle
+    fetchLiveScores();
   }
 
-  /* Bu menüyü açılışta varsayılan yapmak istersen alttaki satırın başındaki // işaretini kaldır */
-  // showTab('todayTab'); render();
+  // Skorların canlı olarak güncellenmesi için her 30 saniyede bir çek
+  setInterval(fetchLiveScores, 30000);
+
 })();
