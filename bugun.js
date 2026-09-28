@@ -107,42 +107,7 @@
   st.textContent = css;
   document.head.appendChild(st);
 
-  /* ---------- sekme + bölüm ---------- */
-  var tabs = document.querySelector('.tabs');
-  var btn = document.createElement('button');
-  btn.className = 'tab';
-  btn.dataset.tab = 'todayTab';
-  btn.textContent = 'Bugünün maçları';
-  btn.onclick = function () { showTab('todayTab'); render(); };
-  if (tabs) tabs.insertBefore(btn, tabs.firstChild);
-
-  var sec = document.createElement('section');
-  sec.id = 'todayTab';
-  sec.hidden = true;
-  sec.innerHTML =
-    '<div class="td-panel">' +
-      '<h2>Bugünün maçları</h2>' +
-      '<div class="notice">Oynanmamış maçlar listelenir. Maçın yanındaki <b>+</b> butonuna basınca, aynı açılış oranına sahip ' +
-      '<b>' + fmtDate(START) + ' ve sonrası</b> oynanmış maçların sonuç yüzdeleri gösterilir. ' +
-      'Örnek: 50 maçın 36'sı MS1 bittiyse <b>%72 · 36/50</b>.</div>' +
-      '<div class="td-ctl">' +
-        '<div class="field"><label for="tdDate">Maç günü</label><input id="tdDate" type="date" class="input"></div>' +
-        '<div class="field wide"><label for="tdBasis">Eşleştirme</label><select id="tdBasis" class="select"></select></div>' +
-        '<div class="field"><label for="tdThr">İdeal eşik (%)</label><input id="tdThr" type="number" class="input" value="70" min="0" max="100"></div>' +
-        '<div class="field"><label for="tdMin">Min. geçmiş maç</label><input id="tdMin" type="number" class="input" value="5" min="1"></div>' +
-      '</div>' +
-      '<div class="td-checks">' +
-        '<label><input type="checkbox" id="tdOnly"> Sadece ideal sonucu olan maçlar</label>' +
-        '<label><input type="checkbox" id="tdAll"> Tüm sonuçları göster</label>' +
-      '</div>' +
-    '</div>' +
-    '<div id="tdStats"></div>' +
-    '<div id="tdList"></div>';
-
-  var anchor = $('futureTab');
-  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
-  else document.body.appendChild(sec);
-
+  /* ---------- sekme + bölüm hazırlanması ---------- */
   $('tdDate').value = iso(new Date());
   $('tdBasis').innerHTML = BASIS.map(function (b) {
     return '<option value="' + b.v + '">' + E(b.l) + '</option>';
