@@ -24,7 +24,7 @@
   --red:#ff6577;
   --yellow:#f4c95d;
   --purple:#a78bfa;
-  --shadow:0 12px 35px rgba(0,0,0,.28);
+  --cyan:#35c9d1;
 }
 
 *{
@@ -64,7 +64,7 @@ button{
   border:1px solid var(--border);
   border-radius:18px;
   padding:22px;
-  box-shadow:var(--shadow);
+  box-shadow:0 12px 35px rgba(0,0,0,.28);
   margin-bottom:16px;
 }
 
@@ -110,7 +110,7 @@ section{
   background:var(--panel);
   border:1px solid var(--border);
   border-radius:18px;
-  box-shadow:var(--shadow);
+  box-shadow:0 12px 35px rgba(0,0,0,.28);
   padding:18px;
 }
 
@@ -373,6 +373,7 @@ tr:last-child td{
 .today-market-count{
   color:var(--muted);
   font-size:12px;
+  margin-top:4px;
 }
 
 .today-results{
@@ -394,7 +395,7 @@ tr:last-child td{
 
 .today-result-label{
   font-size:12px;
-  color:#b8c4da;
+  font-weight:700;
 }
 
 .today-result-rate{
@@ -417,7 +418,8 @@ tr:last-child td{
   background:transparent;
   color:#aebbd2;
   padding:0 2px;
-  font-size:16px;
+  font-size:17px;
+  line-height:1;
 }
 
 .today-result button:hover{
@@ -469,6 +471,10 @@ tr:last-child td{
   color:#f3c85b;
 }
 
+.today-ms2{
+  color:#ff7790;
+}
+
 .today-kg{
   color:#6eb4ff;
 }
@@ -477,7 +483,16 @@ tr:last-child td{
   color:#bd91ff;
 }
 
+.today-iy15{
+  color:#c982ff;
+}
+
+.today-iy05{
+  color:#35c9d1;
+}
+
 @media(max-width:900px){
+
   .stats{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
@@ -490,11 +505,13 @@ tr:last-child td{
   .future-odds{
     justify-content:flex-start;
   }
+
 }
 
 @media(max-width:600px){
+
   .wrap{
-    width:min(100% - 12px,1280px);
+    width:calc(100% - 12px);
     margin-top:8px;
   }
 
@@ -519,6 +536,7 @@ tr:last-child td{
   .today-history-head{
     display:none;
   }
+
 }
 </style>
 </head>
@@ -530,12 +548,14 @@ tr:last-child td{
   <div class="hero">
     <h1>Açılış Oran Analizi</h1>
     <p>
-      Açılış oranlarına göre geçmiş maçları analiz edin ve
-      oynanmamış maçlar için geçmiş istatistikleri inceleyin.
+      Açılış oranlarına göre geçmiş maçları analiz edin
+      ve oynanmamış maçlar için geçmiş istatistikleri inceleyin.
     </p>
   </div>
 
+
   <div class="tabs">
+
     <button class="tab active" data-tab="filterTab">
       Oran filtreleme
     </button>
@@ -547,237 +567,536 @@ tr:last-child td{
     <button class="tab" data-tab="todayTab">
       Bugünün maçları
     </button>
+
   </div>
 
-  <!-- ORAN FİLTRELEME -->
+
+  <!-- =====================================================
+       ORAN FİLTRELEME
+       ===================================================== -->
+
   <section id="filterTab">
 
     <div class="section-head">
+
       <div>
         <h2>Oran filtreleme</h2>
-        <p>Geçmiş maçları açılış oranlarına göre filtreleyin.</p>
+
+        <p>
+          Geçmiş maçları açılış oranlarına göre filtreleyin.
+        </p>
       </div>
+
     </div>
+
 
     <div class="controls">
 
       <div class="control">
+
         <label>Sonuç</label>
+
         <select id="marketSelect">
-          <option value="ms1">MS1</option>
-          <option value="ms0">MS0 / Beraberlik</option>
-          <option value="ms2">MS2</option>
-          <option value="kgVar">KG Var</option>
-          <option value="kgYok">KG Yok</option>
-          <option value="over25">2,5 Üst</option>
-          <option value="under25">2,5 Alt</option>
-          <option value="iy1">İY1</option>
-          <option value="iy0">İY0</option>
-          <option value="iy2">İY2</option>
-          <option value="iyOver15">İY 1,5 Üst</option>
-          <option value="iyUnder15">İY 1,5 Alt</option>
+
+          <option value="ms1">
+            MS1
+          </option>
+
+          <option value="ms0">
+            MS0 / Beraberlik
+          </option>
+
+          <option value="ms2">
+            MS2
+          </option>
+
+          <option value="kgVar">
+            KG Var
+          </option>
+
+          <option value="kgYok">
+            KG Yok
+          </option>
+
+          <option value="over25">
+            2,5 Üst
+          </option>
+
+          <option value="under25">
+            2,5 Alt
+          </option>
+
+          <option value="iy1">
+            İY1
+          </option>
+
+          <option value="iy0">
+            İY0
+          </option>
+
+          <option value="iy2">
+            İY2
+          </option>
+
+          <option value="iyOver15">
+            İY 1,5 Üst
+          </option>
+
+          <option value="iyUnder15">
+            İY 1,5 Alt
+          </option>
+
+          <option value="iyOver05">
+            İY 0,5 Üst
+          </option>
+
         </select>
+
       </div>
 
+
       <div class="control">
+
         <label>Minimum oran</label>
-        <input id="minOdd" type="number" step="0.01" value="1.40">
+
+        <input
+          id="minOdd"
+          type="number"
+          step="0.01"
+          value="1.40"
+        >
+
       </div>
+
 
       <div class="control">
+
         <label>Maksimum oran</label>
-        <input id="maxOdd" type="number" step="0.01" value="10">
+
+        <input
+          id="maxOdd"
+          type="number"
+          step="0.01"
+          value="10"
+        >
+
       </div>
 
-      <button class="btn" id="filterBtn">
+
+      <button
+        class="btn"
+        id="filterBtn"
+      >
         Filtrele
       </button>
 
     </div>
 
+
     <div style="height:14px"></div>
 
+
     <div class="stats">
-      <div class="stat">
-        <div class="label">Toplam maç</div>
-        <div class="value" id="filterTotal">0</div>
-      </div>
 
       <div class="stat">
-        <div class="label">Kazanan</div>
-        <div class="value" id="filterWins">0</div>
+
+        <div class="label">
+          Toplam maç
+        </div>
+
+        <div
+          class="value"
+          id="filterTotal"
+        >
+          0
+        </div>
+
       </div>
 
-      <div class="stat">
-        <div class="label">Başarı oranı</div>
-        <div class="value" id="filterRate">0%</div>
-      </div>
 
       <div class="stat">
-        <div class="label">Ortalama oran</div>
-        <div class="value" id="filterAvg">0.00</div>
+
+        <div class="label">
+          Kazanan
+        </div>
+
+        <div
+          class="value"
+          id="filterWins"
+        >
+          0
+        </div>
+
       </div>
+
+
+      <div class="stat">
+
+        <div class="label">
+          Başarı oranı
+        </div>
+
+        <div
+          class="value"
+          id="filterRate"
+        >
+          0%
+        </div>
+
+      </div>
+
+
+      <div class="stat">
+
+        <div class="label">
+          Ortalama oran
+        </div>
+
+        <div
+          class="value"
+          id="filterAvg"
+        >
+          0.00
+        </div>
+
+      </div>
+
     </div>
+
 
     <div id="filterResults"></div>
 
   </section>
 
-  <!-- OYNANMAMIŞ MAÇLAR -->
+
+  <!-- =====================================================
+       OYNANMAMIŞ MAÇLAR
+       ===================================================== -->
+
   <section id="futureTab" hidden>
 
     <div class="section-head">
+
       <div>
-        <h2>Oynanmamış maçlar</h2>
+
+        <h2>
+          Oynanmamış maçlar
+        </h2>
+
         <p>
-          Seçilen tarihteki oynanmamış maçları geçmiş oranlarla karşılaştırın.
+          Seçilen tarihteki oynanmamış maçları
+          geçmiş oranlarla karşılaştırın.
         </p>
+
       </div>
+
     </div>
+
 
     <div class="controls">
 
       <div class="control">
+
         <label>Tarih</label>
-        <input id="futureDate" type="date">
+
+        <input
+          id="futureDate"
+          type="date"
+        >
+
       </div>
 
+
       <div class="control">
+
         <label>Oran 1</label>
+
         <select id="futureOdd1">
-          <option value="ms1">MS1</option>
-          <option value="ms0">MS0</option>
-          <option value="ms2">MS2</option>
-          <option value="kgVar">KG Var</option>
-          <option value="over25">2,5 Üst</option>
+
+          <option value="ms1">
+            MS1
+          </option>
+
+          <option value="ms0">
+            MS0
+          </option>
+
+          <option value="ms2">
+            MS2
+          </option>
+
+          <option value="kgVar">
+            KG Var
+          </option>
+
+          <option value="over25">
+            2,5 Üst
+          </option>
+
         </select>
+
       </div>
 
+
       <div class="control">
+
         <label>Oran 2</label>
+
         <select id="futureOdd2">
-          <option value="ms2">MS2</option>
-          <option value="ms1">MS1</option>
-          <option value="ms0">MS0</option>
-          <option value="kgVar">KG Var</option>
-          <option value="over25">2,5 Üst</option>
+
+          <option value="ms2">
+            MS2
+          </option>
+
+          <option value="ms1">
+            MS1
+          </option>
+
+          <option value="ms0">
+            MS0
+          </option>
+
+          <option value="kgVar">
+            KG Var
+          </option>
+
+          <option value="over25">
+            2,5 Üst
+          </option>
+
         </select>
+
       </div>
+
 
       <div class="control">
+
         <label>Minimum başarı %</label>
-        <input id="futureThreshold" type="number" min="0" max="100" value="80">
+
+        <input
+          id="futureThreshold"
+          type="number"
+          min="0"
+          max="100"
+          value="70"
+        >
+
       </div>
 
-      <button class="btn" id="futureBtn">
+
+      <button
+        class="btn"
+        id="futureBtn"
+      >
         Analiz et
       </button>
 
     </div>
 
+
     <div style="height:14px"></div>
+
 
     <div id="futureResults"></div>
 
   </section>
 
-  <!-- BUGÜNÜN MAÇLARI -->
+
+  <!-- =====================================================
+       BUGÜNÜN MAÇLARI
+       SADECE BU BÖLÜMDE %70 FİLTRESİ YOK
+       ===================================================== -->
+
   <section id="todayTab" hidden>
 
     <div class="section-head">
 
       <div>
-        <h2>Bugünün maçları ve sonuç istatistikleri</h2>
+
+        <h2>
+          Bugünün maçları ve sonuç istatistikleri
+        </h2>
 
         <p id="todayDateLabel">
           Bugünün oynanmamış maçları
         </p>
+
       </div>
 
-      <button class="btn secondary" id="todayRefresh">
+
+      <button
+        class="btn secondary"
+        id="todayRefresh"
+      >
         Yenile
       </button>
 
     </div>
 
+
     <div class="notice">
-      <strong>Nasıl hesaplanıyor?</strong><br>
+
+      <strong>
+        İstatistik hesaplama:
+      </strong>
+
+      <br>
+
       Bugünün oynanmamış maçlarının açılış oranları,
-      geçmişte oynanmış maçların aynı açılış oranlarıyla karşılaştırılır.
-      Eşleşen geçmiş maçların sonuçları yüzdesel olarak gösterilir.
+      geçmişte oynanmış maçların aynı açılış oranlarıyla
+      karşılaştırılır.
+
       <br><br>
-      <strong>Not:</strong>
-      Bu bölümde 1.40 minimum oran sınırı kullanılmaz ve
-      %70 başarı sınırı uygulanmaz.
+
+      Eşleşen geçmiş maçların sonuç yüzdesi gösterilir.
+
+      <br><br>
+
+      <strong>
+        Bu bölümde %70 başarı sınırı uygulanmaz.
+      </strong>
+
+      <br>
+
+      1.40 oran sınırı da uygulanmaz.
+
     </div>
+
 
     <div class="stats">
 
       <div class="stat">
-        <div class="label">Bugünkü maç</div>
-        <div class="value" id="todayTotal">0</div>
+
+        <div class="label">
+          Bugünkü maç
+        </div>
+
+        <div
+          class="value"
+          id="todayTotal"
+        >
+          0
+        </div>
+
       </div>
 
-      <div class="stat">
-        <div class="label">İstatistiği bulunan maç</div>
-        <div class="value" id="todayQualified">0</div>
-      </div>
 
       <div class="stat">
-        <div class="label">Gösterilen sonuç</div>
-        <div class="value" id="todayRecommendationCount">0</div>
+
+        <div class="label">
+          İstatistiği bulunan maç
+        </div>
+
+        <div
+          class="value"
+          id="todayQualified"
+        >
+          0
+        </div>
+
       </div>
 
+
       <div class="stat">
-        <div class="label">İstatistik türü</div>
-        <div class="value">Yüzdesel</div>
+
+        <div class="label">
+          Gösterilen sonuç
+        </div>
+
+        <div
+          class="value"
+          id="todayRecommendationCount"
+        >
+          0
+        </div>
+
+      </div>
+
+
+      <div class="stat">
+
+        <div class="label">
+          İstatistik türü
+        </div>
+
+        <div class="value">
+          Yüzdesel
+        </div>
+
       </div>
 
     </div>
 
-    <div id="todayResults" class="today-grid"></div>
+
+    <div
+      id="todayResults"
+      class="today-grid"
+    ></div>
 
   </section>
 
 </div>
 
+
 <script src="data.js"></script>
 
 <script>
-const DATA = window.ORAN_DATA || [];
+
+/* =========================================================
+   DATA
+   ========================================================= */
+
+const DATA =
+  window.ORAN_DATA || [];
+
+
+/* =========================================================
+   MARKETLER
+   ========================================================= */
 
 const MARKETS = {
-  ms1:'MS1',
-  ms0:'MS0 / Beraberlik',
-  ms2:'MS2',
-  kgVar:'KG Var',
-  kgYok:'KG Yok',
-  over25:'2,5 Üst',
-  under25:'2,5 Alt',
-  iy1:'İY1',
-  iy0:'İY0',
-  iy2:'İY2',
-  iyOver15:'İY 1,5 Üst',
-  iyUnder15:'İY 1,5 Alt',
-  iyOver05:'İY 0,5 Üst'
+
+  ms1: 'MS1',
+
+  ms0: 'MS0 / Beraberlik',
+
+  ms2: 'MS2',
+
+  kgVar: 'KG Var',
+
+  kgYok: 'KG Yok',
+
+  over25: '2,5 Üst',
+
+  under25: '2,5 Alt',
+
+  iy1: 'İY1',
+
+  iy0: 'İY0',
+
+  iy2: 'İY2',
+
+  iyOver15: 'İY 1,5 Üst',
+
+  iyUnder15: 'İY 1,5 Alt',
+
+  iyOver05: 'İY 0,5 Üst'
+
 };
 
-const OUTCOMES = {
-  ms1:'MS1',
-  ms0:'MS0',
-  ms2:'MS2',
-  kgVar:'KG Var',
-  over25:'2,5 Üst'
-};
 
-
-/* -------------------------------------------------------
-   GENEL YARDIMCI FONKSİYONLAR
-------------------------------------------------------- */
+/* =========================================================
+   YARDIMCI FONKSİYONLAR
+   ========================================================= */
 
 function clean(value){
-  return String(value ?? '').trim();
+
+  return String(
+    value ?? ''
+  ).trim();
+
 }
+
 
 function normalizeDate(value){
 
@@ -787,123 +1106,166 @@ function normalizeDate(value){
 
   const s=clean(value);
 
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+  if(
+    /^\d{4}-\d{2}-\d{2}$/.test(s)
+  ){
     return s;
   }
 
-  let m=s.match(/^(\d{2})[./](\d{2})[./](\d{4})$/);
+  let m=s.match(
+    /^(\d{2})[./](\d{2})[./](\d{4})$/
+  );
 
   if(m){
+
     return `${m[3]}-${m[2]}-${m[1]}`;
+
   }
 
   return s.slice(0,10);
+
 }
+
 
 function localTodayISO(){
 
   const d=new Date();
 
   const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const day=String(d.getDate()).padStart(2,'0');
+
+  const m=String(
+    d.getMonth()+1
+  ).padStart(2,'0');
+
+  const day=String(
+    d.getDate()
+  ).padStart(2,'0');
 
   return `${y}-${m}-${day}`;
+
 }
 
-function getField(row, names){
+
+function getField(row,names){
 
   for(const name of names){
 
     if(
       row &&
-      Object.prototype.hasOwnProperty.call(row,name) &&
+      Object.prototype.hasOwnProperty.call(
+        row,
+        name
+      ) &&
       clean(row[name])!==''
     ){
+
       return row[name];
+
     }
 
   }
 
   return '';
+
 }
+
 
 function getDate(row){
 
   return normalizeDate(
-    getField(row,[
-      'date',
-      'Date',
-      'tarih',
-      'Tarih',
-      'matchDate',
-      'match_date'
-    ])
+    getField(
+      row,
+      [
+        'date',
+        'Date',
+        'tarih',
+        'Tarih',
+        'matchDate',
+        'match_date'
+      ]
+    )
   );
 
 }
+
 
 function getHome(row){
 
   return clean(
-    getField(row,[
-      'home',
-      'Home',
-      'homeTeam',
-      'home_team',
-      'ev',
-      'Ev'
-    ])
+    getField(
+      row,
+      [
+        'home',
+        'Home',
+        'homeTeam',
+        'home_team',
+        'ev',
+        'Ev'
+      ]
+    )
   );
 
 }
+
 
 function getAway(row){
 
   return clean(
-    getField(row,[
-      'away',
-      'Away',
-      'awayTeam',
-      'away_team',
-      'deplasman',
-      'Deplasman'
-    ])
+    getField(
+      row,
+      [
+        'away',
+        'Away',
+        'awayTeam',
+        'away_team',
+        'deplasman',
+        'Deplasman'
+      ]
+    )
   );
 
 }
+
 
 function getScore(row){
 
   return clean(
-    getField(row,[
-      'scoreFT',
-      'score',
-      'ft',
-      'result',
-      'skor',
-      'Skor'
-    ])
+    getField(
+      row,
+      [
+        'scoreFT',
+        'score',
+        'ft',
+        'result',
+        'skor',
+        'Skor'
+      ]
+    )
   );
 
 }
+
 
 function getHalfScore(row){
 
   return clean(
-    getField(row,[
-      'scoreHT',
-      'ht',
-      'halfTime',
-      'half_time',
-      'iy',
-      'IY',
-      'ilkYari',
-      'ilk_yari'
-    ])
+    getField(
+      row,
+      [
+        'scoreHT',
+        'ht',
+        'halfTime',
+        'half_time',
+        'iy',
+        'IY',
+        'ilkYari',
+        'ilk_yari'
+      ]
+    )
   );
 
 }
+
 
 function getOdd(row,key){
 
@@ -921,10 +1283,15 @@ function getOdd(row,key){
     'opening_'+key
   ];
 
-  for(const k of possibleKeys){
+  for(
+    const k of possibleKeys
+  ){
 
     if(
-      Object.prototype.hasOwnProperty.call(row,k) &&
+      Object.prototype.hasOwnProperty.call(
+        row,
+        k
+      ) &&
       clean(row[k])!==''
     ){
 
@@ -940,12 +1307,18 @@ function getOdd(row,key){
 
   }
 
+
   if(row.odds){
 
-    for(const k of possibleKeys){
+    for(
+      const k of possibleKeys
+    ){
 
       if(
-        Object.prototype.hasOwnProperty.call(row.odds,k) &&
+        Object.prototype.hasOwnProperty.call(
+          row.odds,
+          k
+        ) &&
         clean(row.odds[k])!==''
       ){
 
@@ -964,16 +1337,19 @@ function getOdd(row,key){
   }
 
   return NaN;
+
 }
 
 
-/* -------------------------------------------------------
-   SONUÇ HESAPLAMA
-------------------------------------------------------- */
+/* =========================================================
+   SKOR PARSE
+   ========================================================= */
 
 function parseScore(score){
 
-  const m=clean(score).match(/(\d+)\s*[-:]\s*(\d+)/);
+  const m=clean(score).match(
+    /(\d+)\s*[-:]\s*(\d+)/
+  );
 
   if(!m){
     return null;
@@ -985,10 +1361,13 @@ function parseScore(score){
   };
 
 }
+
 
 function parseHalfScore(score){
 
-  const m=clean(score).match(/(\d+)\s*[-:]\s*(\d+)/);
+  const m=clean(score).match(
+    /(\d+)\s*[-:]\s*(\d+)/
+  );
 
   if(!m){
     return null;
@@ -1000,153 +1379,282 @@ function parseHalfScore(score){
   };
 
 }
+
+
+/* =========================================================
+   SONUÇ HESAPLAMA
+   ========================================================= */
 
 function getResult(row,key){
 
   /*
-    Önce data.js içindeki hazır results alanını kullan.
+    data.js içinde hazır sonuç varsa onu kullan.
   */
 
   if(
     row &&
     row.results &&
-    Object.prototype.hasOwnProperty.call(row.results,key) &&
+    Object.prototype.hasOwnProperty.call(
+      row.results,
+      key
+    ) &&
     clean(row.results[key])!==''
   ){
 
-    return clean(row.results[key]);
+    return clean(
+      row.results[key]
+    );
+
   }
 
 
+  const score=
+    parseScore(
+      getScore(row)
+    );
+
+
   /*
-    Maç sonucu
+    MAÇ SONUCU
   */
 
-  const score=parseScore(getScore(row));
+  if(score){
 
-  if(
-    (key==='ms1' ||
-     key==='ms0' ||
-     key==='ms2' ||
-     key==='kgVar' ||
-     key==='kgYok' ||
-     key==='over25' ||
-     key==='under25')
-    &&
-    score
-  ){
+    const total=
+      score.home +
+      score.away;
 
-    const total=score.home+score.away;
 
     if(key==='ms1'){
-      return score.home>score.away?'1':'';
+
+      return score.home>score.away
+        ? '1'
+        : '';
+
     }
+
 
     if(key==='ms0'){
-      return score.home===score.away?'X':'';
+
+      return score.home===score.away
+        ? 'X'
+        : '';
+
     }
+
 
     if(key==='ms2'){
-      return score.away>score.home?'2':'';
+
+      return score.away>score.home
+        ? '2'
+        : '';
+
     }
+
 
     if(key==='kgVar'){
-      return score.home>0 && score.away>0?'VAR':'';
+
+      return (
+        score.home>0 &&
+        score.away>0
+      )
+        ? 'VAR'
+        : '';
+
     }
+
 
     if(key==='kgYok'){
-      return score.home===0 || score.away===0?'YOK':'';
+
+      return (
+        score.home===0 ||
+        score.away===0
+      )
+        ? 'YOK'
+        : '';
+
     }
+
 
     if(key==='over25'){
-      return total>=3?'ÜST':'';
+
+      return total>=3
+        ? 'ÜST'
+        : '';
+
     }
 
+
     if(key==='under25'){
-      return total<=2?'ALT':'';
+
+      return total<=2
+        ? 'ALT'
+        : '';
+
     }
 
   }
 
 
   /*
-    İlk yarı sonucu
+    İLK YARI SONUCU
   */
 
-  const ht=parseHalfScore(getHalfScore(row));
+  const ht=
+    parseHalfScore(
+      getHalfScore(row)
+    );
+
 
   if(ht){
 
-    const totalHT=ht.home+ht.away;
+    const totalHT=
+      ht.home +
+      ht.away;
+
 
     if(key==='iy1'){
-      return ht.home>ht.away?'1':'';
+
+      return ht.home>ht.away
+        ? '1'
+        : '';
+
     }
+
 
     if(key==='iy0'){
-      return ht.home===ht.away?'X':'';
+
+      return ht.home===ht.away
+        ? 'X'
+        : '';
+
     }
+
 
     if(key==='iy2'){
-      return ht.away>ht.home?'2':'';
+
+      return ht.away>ht.home
+        ? '2'
+        : '';
+
     }
 
-    if(key==='iyOver15'){
-      return totalHT>=2?'ÜST':'';
-    }
 
-    if(key==='iyUnder15'){
-      return totalHT<=1?'ALT':'';
-    }
+    /*
+      İY 0,5 ÜST
+      En az 1 ilk yarı golü
+    */
 
     if(key==='iyOver05'){
-      return totalHT>=1?'ÜST':'';
+
+      return totalHT>=1
+        ? 'ÜST'
+        : 'ALT';
+
+    }
+
+
+    /*
+      İY 1,5 ÜST
+      En az 2 ilk yarı golü
+    */
+
+    if(key==='iyOver15'){
+
+      return totalHT>=2
+        ? 'ÜST'
+        : 'ALT';
+
+    }
+
+
+    if(key==='iyUnder15'){
+
+      return totalHT<=1
+        ? 'ALT'
+        : 'ÜST';
+
     }
 
   }
 
+
   return '';
+
 }
 
 
-/* -------------------------------------------------------
+/* =========================================================
    ORAN FİLTRELEME
-------------------------------------------------------- */
+   ========================================================= */
 
 function runFilter(){
 
-  const key=document.getElementById('marketSelect').value;
+  const key=
+    document.getElementById(
+      'marketSelect'
+    ).value;
 
-  const min=parseFloat(
-    document.getElementById('minOdd').value
-  );
 
-  const max=parseFloat(
-    document.getElementById('maxOdd').value
-  );
+  const min=
+    parseFloat(
+      document.getElementById(
+        'minOdd'
+      ).value
+    );
 
-  const rows=DATA.filter(row=>{
 
-    const odd=getOdd(row,key);
+  const max=
+    parseFloat(
+      document.getElementById(
+        'maxOdd'
+      ).value
+    );
 
-    return Number.isFinite(odd) &&
-      odd>=min &&
-      odd<=max;
 
-  });
+  const rows=
+    DATA.filter(row=>{
+
+      const odd=
+        getOdd(
+          row,
+          key
+        );
+
+      return (
+        Number.isFinite(odd) &&
+        odd>=min &&
+        odd<=max
+      );
+
+    });
+
 
   let wins=0;
+
   let oddTotal=0;
+
 
   rows.forEach(row=>{
 
-    const result=getResult(row,key);
+    const result=
+      getResult(
+        row,
+        key
+      );
+
 
     if(result){
       wins++;
     }
 
-    const odd=getOdd(row,key);
+
+    const odd=
+      getOdd(
+        row,
+        key
+      );
+
 
     if(Number.isFinite(odd)){
       oddTotal+=odd;
@@ -1154,218 +1662,411 @@ function runFilter(){
 
   });
 
-  const rate=rows.length
-    ? (wins/rows.length)*100
-    : 0;
 
-  const avg=rows.length
-    ? oddTotal/rows.length
-    : 0;
+  const rate=
+    rows.length
+      ? (wins/rows.length)*100
+      : 0;
 
-  document.getElementById('filterTotal').textContent=rows.length;
-  document.getElementById('filterWins').textContent=wins;
-  document.getElementById('filterRate').textContent=rate.toFixed(1)+'%';
-  document.getElementById('filterAvg').textContent=avg.toFixed(2);
 
-  renderFilterRows(rows,key);
+  const avg=
+    rows.length
+      ? oddTotal/rows.length
+      : 0;
+
+
+  document.getElementById(
+    'filterTotal'
+  ).textContent=rows.length;
+
+
+  document.getElementById(
+    'filterWins'
+  ).textContent=wins;
+
+
+  document.getElementById(
+    'filterRate'
+  ).textContent=
+    rate.toFixed(1)+'%';
+
+
+  document.getElementById(
+    'filterAvg'
+  ).textContent=
+    avg.toFixed(2);
+
+
+  renderFilterRows(
+    rows,
+    key
+  );
 
 }
 
+
 function renderFilterRows(rows,key){
 
-  const box=document.getElementById('filterResults');
+  const box=
+    document.getElementById(
+      'filterResults'
+    );
+
 
   if(!rows.length){
 
     box.innerHTML=`
+
       <div class="empty">
         Bu kriterlere uygun maç bulunamadı.
       </div>
+
     `;
 
     return;
+
   }
 
-  const html=rows.map(row=>{
 
-    const result=getResult(row,key);
+  const html=
+    rows.map(row=>{
 
-    return `
-      <tr>
-        <td>${getDate(row)}</td>
-        <td>${getHome(row)}</td>
-        <td>${getAway(row)}</td>
-        <td>${getScore(row)||'-'}</td>
-        <td>${getOdd(row,key).toFixed(2)}</td>
-        <td>
-          ${
-            result
-            ? `<span class="badge green">${result}</span>`
-            : `<span class="badge red">-</span>`
-          }
-        </td>
-      </tr>
-    `;
+      const result=
+        getResult(
+          row,
+          key
+        );
 
-  }).join('');
+
+      const odd=
+        getOdd(
+          row,
+          key
+        );
+
+
+      return `
+
+        <tr>
+
+          <td>
+            ${getDate(row)}
+          </td>
+
+          <td>
+            ${getHome(row)}
+          </td>
+
+          <td>
+            ${getAway(row)}
+          </td>
+
+          <td>
+            ${getScore(row)||'-'}
+          </td>
+
+          <td>
+            ${odd.toFixed(2)}
+          </td>
+
+          <td>
+
+            ${
+              result
+
+              ? `
+                <span class="badge green">
+                  ${result}
+                </span>
+              `
+
+              : `
+                <span class="badge red">
+                  -
+                </span>
+              `
+            }
+
+          </td>
+
+        </tr>
+
+      `;
+
+    }).join('');
+
 
   box.innerHTML=`
+
     <div class="table-wrap">
+
       <table>
+
         <thead>
+
           <tr>
+
             <th>Tarih</th>
             <th>Ev</th>
             <th>Deplasman</th>
             <th>Skor</th>
             <th>Oran</th>
             <th>Sonuç</th>
+
           </tr>
+
         </thead>
 
         <tbody>
           ${html}
         </tbody>
+
       </table>
+
     </div>
+
   `;
 
 }
 
 
-/* -------------------------------------------------------
+/* =========================================================
    OYNANMAMIŞ MAÇLAR
-------------------------------------------------------- */
+   BURADAKİ %70 FİLTRESİ KORUNDU
+   ========================================================= */
 
 function renderFuture(){
 
-  const date=document.getElementById('futureDate').value;
+  const date=
+    document.getElementById(
+      'futureDate'
+    ).value;
 
-  const key1=document.getElementById('futureOdd1').value;
-  const key2=document.getElementById('futureOdd2').value;
 
-  const threshold=parseFloat(
-    document.getElementById('futureThreshold').value
-  ) || 80;
+  const key1=
+    document.getElementById(
+      'futureOdd1'
+    ).value;
 
-  const rows=DATA.filter(row=>{
 
-    return getDate(row)===date &&
-      !getScore(row);
+  const key2=
+    document.getElementById(
+      'futureOdd2'
+    ).value;
 
-  });
 
-  const resultBox=document.getElementById('futureResults');
+  const threshold=
+    parseFloat(
+      document.getElementById(
+        'futureThreshold'
+      ).value
+    ) || 70;
+
+
+  const rows=
+    DATA.filter(row=>{
+
+      return (
+        getDate(row)===date &&
+        !getScore(row)
+      );
+
+    });
+
+
+  const resultBox=
+    document.getElementById(
+      'futureResults'
+    );
+
 
   if(!rows.length){
 
     resultBox.innerHTML=`
+
       <div class="empty">
         Seçilen tarihte oynanmamış maç bulunamadı.
       </div>
+
     `;
 
     return;
+
   }
 
-  const html=rows.map(row=>{
 
-    const odd1=getOdd(row,key1);
-    const odd2=getOdd(row,key2);
+  const html=
+    rows.map(row=>{
 
-    if(!Number.isFinite(odd1) || !Number.isFinite(odd2)){
-      return '';
-    }
+      const odd1=
+        getOdd(
+          row,
+          key1
+        );
 
-    const history=DATA.filter(h=>{
 
-      if(!getScore(h)){
-        return false;
+      const odd2=
+        getOdd(
+          row,
+          key2
+        );
+
+
+      if(
+        !Number.isFinite(odd1) ||
+        !Number.isFinite(odd2)
+      ){
+
+        return '';
+
       }
 
-      const h1=getOdd(h,key1);
-      const h2=getOdd(h,key2);
 
-      return Number.isFinite(h1) &&
-        Number.isFinite(h2) &&
-        h1===odd1 &&
-        h2===odd2;
+      const history=
+        DATA.filter(h=>{
 
-    });
+          if(!getScore(h)){
+            return false;
+          }
 
-    if(!history.length){
-      return '';
-    }
 
-    let success=0;
+          const h1=
+            getOdd(
+              h,
+              key1
+            );
 
-    history.forEach(h=>{
 
-      const r1=getResult(h,key1);
-      const r2=getResult(h,key2);
+          const h2=
+            getOdd(
+              h,
+              key2
+            );
 
-      if(r1 || r2){
-        success++;
+
+          return (
+            Number.isFinite(h1) &&
+            Number.isFinite(h2) &&
+            h1===odd1 &&
+            h2===odd2
+          );
+
+        });
+
+
+      if(!history.length){
+        return '';
       }
 
-    });
 
-    const rate=(success/history.length)*100;
+      let success=0;
 
-    if(rate<threshold){
-      return '';
-    }
 
-    return `
-      <div class="future-card">
+      history.forEach(h=>{
 
-        <div class="future-main">
+        const r1=
+          getResult(
+            h,
+            key1
+          );
 
-          <div class="future-date">
-            ${getDate(row)}
-          </div>
 
-          <div class="future-teams">
-            ${getHome(row)}
-            -
-            ${getAway(row)}
-          </div>
+        const r2=
+          getResult(
+            h,
+            key2
+          );
 
-          <div class="future-odds">
 
-            <span class="odd-pill">
-              ${MARKETS[key1]||key1}: ${odd1.toFixed(2)}
-            </span>
+        if(r1 || r2){
+          success++;
+        }
 
-            <span class="odd-pill">
-              ${MARKETS[key2]||key2}: ${odd2.toFixed(2)}
-            </span>
+      });
 
-            <span class="badge green">
-              ${rate.toFixed(1)}%
-            </span>
+
+      const rate=
+        (success/history.length)*100;
+
+
+      /*
+        BURADAKİ %70 FİLTRESİ
+        DİĞER BÖLÜMDE KORUNUYOR.
+      */
+
+      if(rate<threshold){
+        return '';
+      }
+
+
+      return `
+
+        <div class="future-card">
+
+          <div class="future-main">
+
+            <div class="future-date">
+              ${getDate(row)}
+            </div>
+
+
+            <div class="future-teams">
+              ${getHome(row)}
+              -
+              ${getAway(row)}
+            </div>
+
+
+            <div class="future-odds">
+
+              <span class="odd-pill">
+                ${MARKETS[key1]||key1}:
+                ${odd1.toFixed(2)}
+              </span>
+
+
+              <span class="odd-pill">
+                ${MARKETS[key2]||key2}:
+                ${odd2.toFixed(2)}
+              </span>
+
+
+              <span class="badge green">
+                ${rate.toFixed(1)}%
+              </span>
+
+            </div>
 
           </div>
 
         </div>
 
+      `;
+
+    })
+    .filter(Boolean)
+    .join('');
+
+
+  resultBox.innerHTML=
+    html ||
+
+    `
+
+      <div class="empty">
+        Belirlenen başarı oranına ulaşan
+        maç bulunamadı.
       </div>
+
     `;
-
-  }).filter(Boolean).join('');
-
-  resultBox.innerHTML=html || `
-    <div class="empty">
-      Belirlenen başarı oranına ulaşan maç bulunamadı.
-    </div>
-  `;
 
 }
 
 
-/* -------------------------------------------------------
+/* =========================================================
    BUGÜNÜN MAÇLARI
-------------------------------------------------------- */
+   %70 FİLTRESİ YOK
+   ========================================================= */
 
 const TODAY_MARKETS=[
 
@@ -1408,102 +2109,151 @@ const TODAY_MARKETS=[
     key:'iyOver15',
     label:'İY 1,5 Üst',
     target:'ÜST',
-    css:'today-over'
+    css:'today-iy15'
   },
 
   {
     key:'iyOver05',
     label:'İY 0,5 Üst',
     target:'ÜST',
-    css:'today-over'
+    css:'today-iy05'
   }
 
 ];
 
 
-function todayHistoryByOdd(match,key){
+function todayHistoryByOdd(
+  match,
+  key
+){
 
-  const odd=getOdd(match,key);
+  const odd=
+    getOdd(
+      match,
+      key
+    );
+
 
   if(!Number.isFinite(odd)){
     return [];
   }
 
+
   return DATA.filter(row=>{
 
     /*
-      Geçmiş maçın oynanmış olması gerekiyor.
+      Sadece oynanmış geçmiş maçlar
     */
 
     if(!getScore(row)){
       return false;
     }
 
-    const historicalOdd=getOdd(row,key);
+
+    const historicalOdd=
+      getOdd(
+        row,
+        key
+      );
+
 
     if(!Number.isFinite(historicalOdd)){
       return false;
     }
 
+
     /*
-      Aynı açılış oranı.
+      Aynı açılış oranı
     */
 
-    if(historicalOdd!==odd){
-      return false;
-    }
-
-    return true;
+    return historicalOdd===odd;
 
   });
 
 }
 
 
+/* =========================================================
+   BUGÜNÜN MAÇI İSTATİSTİKLERİ
+   BURADA %70 SINIRI YOK
+   ========================================================= */
+
 function todayRecommendations(match){
 
   const recommendations=[];
 
+
   TODAY_MARKETS.forEach(market=>{
 
-    const odd=getOdd(match,market.key);
+    const odd=
+      getOdd(
+        match,
+        market.key
+      );
+
+
+    /*
+      Oran yoksa bu istatistiği geç
+    */
 
     if(!Number.isFinite(odd)){
       return;
     }
 
-    const history=todayHistoryByOdd(
-      match,
-      market.key
-    );
+
+    /*
+      Aynı açılış oranına sahip
+      geçmiş maçlar
+    */
+
+    const history=
+      todayHistoryByOdd(
+        match,
+        market.key
+      );
+
+
+    /*
+      Geçmiş veri yoksa gösterme
+    */
 
     if(!history.length){
       return;
     }
 
-    const valid=history.filter(row=>{
 
-      const result=getResult(
-        row,
-        market.key
-      );
+    /*
+      Başarılı sonuçların sayısı
+    */
 
-      return result===market.target;
+    const success=
+      history.filter(row=>{
 
-    });
+        return getResult(
+          row,
+          market.key
+        )===market.target;
 
-    if(!valid.length){
-      /*
-        Hiç başarılı sonuç yoksa yine de
-        %0 istatistiğini göstermek için
-        history mevcut olduğu sürece devam ediyoruz.
-      */
-    }
+      }).length;
 
-    const success=valid.length;
-    const total=history.length;
 
-    const rate=(success/total)*100;
+    const total=
+      history.length;
+
+
+    /*
+      Başarı yüzdesi
+    */
+
+    const rate=
+      (success/total)*100;
+
+
+    /*
+      ÖNEMLİ:
+      Burada %70 filtresi YOK.
+      %0 dahil bütün oranlar gösterilir.
+    */
 
     recommendations.push({
 
@@ -1515,15 +2265,15 @@ function todayRecommendations(match){
 
       css:market.css,
 
-      odd,
+      odd:odd,
 
-      success,
+      success:success,
 
-      total,
+      total:total,
 
-      rate,
+      rate:rate,
 
-      history
+      history:history
 
     });
 
@@ -1531,303 +2281,459 @@ function todayRecommendations(match){
 
 
   /*
-    En yüksek yüzdeden en düşüğe sırala.
+    Yüzde yüksekten düşüğe sıralama.
+    Bu bir filtre değildir.
   */
 
-  recommendations.sort((a,b)=>{
+  recommendations.sort(
+    (a,b)=>{
 
-    if(b.rate!==a.rate){
-      return b.rate-a.rate;
+      if(
+        b.rate!==a.rate
+      ){
+
+        return b.rate-a.rate;
+
+      }
+
+
+      return b.total-a.total;
+
     }
+  );
 
-    return b.total-a.total;
-
-  });
 
   return recommendations;
 
 }
 
 
+/* =========================================================
+   BUGÜNÜN MAÇLARINI RENDER
+   ========================================================= */
+
 function renderToday(){
 
-  const today=localTodayISO();
+  const today=
+    localTodayISO();
 
-  const rows=DATA.filter(row=>{
 
-    return getDate(row)===today &&
-      !getScore(row);
+  const rows=
+    DATA.filter(row=>{
 
-  });
+      return (
+        getDate(row)===today &&
+        !getScore(row)
+      );
 
-  document.getElementById('todayDateLabel').textContent=
+    });
+
+
+  document.getElementById(
+    'todayDateLabel'
+  ).textContent=
     `Tarih: ${today}`;
 
-  document.getElementById('todayTotal').textContent=
+
+  document.getElementById(
+    'todayTotal'
+  ).textContent=
     rows.length;
 
+
   let qualified=0;
+
   let recommendationCount=0;
 
-  const cards=rows.map((match,index)=>{
 
-    const recommendations=
-      todayRecommendations(match);
+  const cards=
+    rows.map(
+      (match,index)=>{
 
-    if(recommendations.length){
-      qualified++;
-    }
-
-    recommendationCount+=recommendations.length;
-
-    const resultHtml=recommendations.map((rec,recIndex)=>{
-
-      const detailId=
-        `today-detail-${index}-${recIndex}`;
-
-      return `
-        <div class="today-result">
-
-          <span class="${rec.css}">
-            <span class="today-result-label">
-              ${rec.label}
-            </span>
-          </span>
-
-          <span class="today-result-rate">
-            %${rec.rate.toFixed(1)}
-          </span>
-
-          <span class="today-result-count">
-            ${rec.success}/${rec.total}
-          </span>
-
-          <span class="today-result-odd">
-            oran ${rec.odd.toFixed(2)}
-          </span>
-
-          <button
-            type="button"
-            onclick="toggleTodayDetail('${detailId}')"
-            title="Geçmiş maçları göster"
-          >
-            +
-          </button>
-
-        </div>
-
-        <div
-          id="${detailId}"
-          class="today-details"
-        >
-
-          <div class="today-history">
-
-            <div class="today-history-row today-history-head">
-              <div>Tarih</div>
-              <div>Maç</div>
-              <div>Skor</div>
-              <div>Sonuç</div>
-            </div>
-
-            ${
-              rec.history.map(historyRow=>{
-
-                const result=
-                  getResult(historyRow,rec.key);
-
-                return `
-                  <div class="today-history-row">
-
-                    <div>
-                      ${getDate(historyRow)}
-                    </div>
-
-                    <div>
-                      ${getHome(historyRow)}
-                      -
-                      ${getAway(historyRow)}
-                    </div>
-
-                    <div>
-                      ${getScore(historyRow)||'-'}
-                    </div>
-
-                    <div class="today-history-result">
-                      ${result||'-'}
-                    </div>
-
-                  </div>
-                `;
-
-              }).join('')
-            }
-
-          </div>
-
-        </div>
-      `;
-
-    }).join('');
+        const recommendations=
+          todayRecommendations(
+            match
+          );
 
 
-    return `
-      <div class="today-card">
-
-        <div class="today-card-head">
-
-          <div class="today-date">
-            ${today}
-          </div>
-
-          <div>
-            <div class="today-teams">
-              ${getHome(match)}
-              -
-              ${getAway(match)}
-            </div>
-
-            <div class="today-market-count">
-              ${
-                recommendations.length
-              } farklı istatistik bulundu
-            </div>
-          </div>
-
-          <div>
-            ${
-              recommendations.length
-              ? `<span class="badge green">
-                   İstatistik mevcut
-                 </span>`
-              : `<span class="badge yellow">
-                   Geçmiş eşleşme yok
-                 </span>`
-            }
-          </div>
-
-        </div>
-
-        ${
+        if(
           recommendations.length
-          ? `
-            <div class="today-results">
-              ${resultHtml}
-            </div>
-          `
-          : `
-            <div class="empty">
-              Bu maç için aynı açılış oranına sahip
-              geçmiş istatistik bulunamadı.
-            </div>
-          `
+        ){
+
+          qualified++;
+
         }
 
-      </div>
-    `;
 
-  }).join('');
+        recommendationCount +=
+          recommendations.length;
 
 
-  document.getElementById('todayQualified').textContent=
+        const resultHtml=
+          recommendations.map(
+            (rec,recIndex)=>{
+
+              const detailId=
+                `today-detail-${index}-${recIndex}`;
+
+
+              return `
+
+                <div class="today-result">
+
+                  <span class="${rec.css}">
+
+                    <span class="today-result-label">
+                      ${rec.label}
+                    </span>
+
+                  </span>
+
+
+                  <span class="today-result-rate">
+                    %${rec.rate.toFixed(1)}
+                  </span>
+
+
+                  <span class="today-result-count">
+                    ${rec.success}/${rec.total}
+                  </span>
+
+
+                  <span class="today-result-odd">
+                    oran ${rec.odd.toFixed(2)}
+                  </span>
+
+
+                  <button
+                    type="button"
+                    onclick="toggleTodayDetail('${detailId}')"
+                    title="Geçmiş maçları göster"
+                  >
+                    +
+                  </button>
+
+                </div>
+
+
+                <div
+                  id="${detailId}"
+                  class="today-details"
+                >
+
+                  <div class="today-history">
+
+                    <div class="today-history-row today-history-head">
+
+                      <div>
+                        Tarih
+                      </div>
+
+                      <div>
+                        Maç
+                      </div>
+
+                      <div>
+                        Skor
+                      </div>
+
+                      <div>
+                        Sonuç
+                      </div>
+
+                    </div>
+
+
+                    ${
+                      rec.history.map(
+                        historyRow=>{
+
+                          const result=
+                            getResult(
+                              historyRow,
+                              rec.key
+                            );
+
+
+                          return `
+
+                            <div class="today-history-row">
+
+                              <div>
+                                ${getDate(historyRow)}
+                              </div>
+
+                              <div>
+                                ${getHome(historyRow)}
+                                -
+                                ${getAway(historyRow)}
+                              </div>
+
+                              <div>
+                                ${getScore(historyRow)||'-'}
+                              </div>
+
+                              <div class="today-history-result">
+                                ${result||'-'}
+                              </div>
+
+                            </div>
+
+                          `;
+
+                        }
+                      ).join('')
+                    }
+
+                  </div>
+
+                </div>
+
+              `;
+
+            }
+          ).join('');
+
+
+        return `
+
+          <div class="today-card">
+
+            <div class="today-card-head">
+
+              <div class="today-date">
+                ${today}
+              </div>
+
+
+              <div>
+
+                <div class="today-teams">
+                  ${getHome(match)}
+                  -
+                  ${getAway(match)}
+                </div>
+
+
+                <div class="today-market-count">
+                  ${recommendations.length}
+                  farklı istatistik bulundu
+                </div>
+
+              </div>
+
+
+              <div>
+
+                ${
+                  recommendations.length
+
+                  ? `
+
+                    <span class="badge green">
+                      İstatistik mevcut
+                    </span>
+
+                  `
+
+                  : `
+
+                    <span class="badge yellow">
+                      Geçmiş eşleşme yok
+                    </span>
+
+                  `
+                }
+
+              </div>
+
+            </div>
+
+
+            ${
+              recommendations.length
+
+              ? `
+
+                <div class="today-results">
+                  ${resultHtml}
+                </div>
+
+              `
+
+              : `
+
+                <div class="empty">
+                  Bu maç için aynı açılış oranına
+                  sahip geçmiş istatistik bulunamadı.
+                </div>
+
+              `
+            }
+
+          </div>
+
+        `;
+
+      }
+    ).join('');
+
+
+  document.getElementById(
+    'todayQualified'
+  ).textContent=
     qualified;
 
-  document.getElementById('todayRecommendationCount').textContent=
+
+  document.getElementById(
+    'todayRecommendationCount'
+  ).textContent=
     recommendationCount;
 
-  document.getElementById('todayResults').innerHTML=
+
+  document.getElementById(
+    'todayResults'
+  ).innerHTML=
+
     cards ||
+
     `
+
       <div class="empty">
         Bugün oynanmamış maç bulunamadı.
       </div>
+
     `;
 
 }
 
 
+/* =========================================================
+   + BUTONU
+   ========================================================= */
+
 function toggleTodayDetail(id){
 
-  const el=document.getElementById(id);
+  const element=
+    document.getElementById(id);
 
-  if(!el){
+
+  if(!element){
     return;
   }
 
-  el.classList.toggle('open');
+
+  element.classList.toggle(
+    'open'
+  );
 
 }
 
 
-/* -------------------------------------------------------
+/* =========================================================
    SEKME SİSTEMİ
-------------------------------------------------------- */
+   ========================================================= */
 
 function showTab(tabId){
 
-  document.querySelectorAll('.tab').forEach(button=>{
+  document
+    .querySelectorAll('.tab')
+    .forEach(button=>{
 
-    button.classList.toggle(
-      'active',
-      button.dataset.tab===tabId
+      button.classList.toggle(
+        'active',
+        button.dataset.tab===tabId
+      );
+
+    });
+
+
+  document
+    .querySelectorAll('section')
+    .forEach(section=>{
+
+      section.hidden=
+        section.id!==tabId;
+
+    });
+
+
+  if(
+    tabId==='todayTab'
+  ){
+
+    renderToday();
+
+  }
+
+}
+
+
+/* =========================================================
+   EVENTLER
+   ========================================================= */
+
+document
+  .querySelectorAll('.tab')
+  .forEach(button=>{
+
+    button.addEventListener(
+      'click',
+      ()=>{
+
+        showTab(
+          button.dataset.tab
+        );
+
+      }
     );
 
   });
 
-  document.querySelectorAll('section').forEach(section=>{
 
-    section.hidden=
-      section.id!==tabId;
-
-  });
-
-  if(tabId==='todayTab'){
-    renderToday();
-  }
-
-}
+document
+  .getElementById('filterBtn')
+  .addEventListener(
+    'click',
+    runFilter
+  );
 
 
-/* -------------------------------------------------------
-   EVENTLER
-------------------------------------------------------- */
-
-document.querySelectorAll('.tab').forEach(button=>{
-
-  button.addEventListener('click',()=>{
-
-    showTab(button.dataset.tab);
-
-  });
-
-});
+document
+  .getElementById('futureBtn')
+  .addEventListener(
+    'click',
+    renderFuture
+  );
 
 
-document.getElementById('filterBtn')
-  .addEventListener('click',runFilter);
+document
+  .getElementById('todayRefresh')
+  .addEventListener(
+    'click',
+    renderToday
+  );
 
 
-document.getElementById('futureBtn')
-  .addEventListener('click',renderFuture);
-
-
-document.getElementById('todayRefresh')
-  .addEventListener('click',renderToday);
-
-
-/* -------------------------------------------------------
+/* =========================================================
    BAŞLANGIÇ
-------------------------------------------------------- */
+   ========================================================= */
 
 function init(){
 
-  const today=localTodayISO();
+  const today=
+    localTodayISO();
 
-  document.getElementById('futureDate').value=today;
+
+  document.getElementById(
+    'futureDate'
+  ).value=today;
+
 
   runFilter();
 
 }
+
 
 init();
 
