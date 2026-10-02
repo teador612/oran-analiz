@@ -209,7 +209,7 @@
 
         matches.forEach(function (m) {
           // Eğer maçta skor verisi varsa (home ve away null/tanımsız değilse)
-          if (m.score && (m.score.home !== null && m.score.home !== undefined)) {
+          if (m.score && /^\d+$/.test(String(m.score.home)) && /^\d+$/.test(String(m.score.away))) {
             scores.push({
               home: m.home,
               away: m.away,
@@ -221,6 +221,7 @@
 
         CUR.liveScores = scores;
         updateScoresOnUI();
+        updateMainMatchScores();
       })
       .catch(function (err) {
         console.log('Maçkolik JSON skor hatası:', err);
@@ -254,6 +255,30 @@
         existingScore.className = 'td-score';
         existingScore.textContent = found.score;
       }
+    });
+  }
+
+  /* Ana analiz sonuçlarındaki maç adlarının yanına skoru ekle. */
+  function updateMainMatchScores() {
+    document.querySelectorAll('.match').forEach(function (element) {
+      var original = element.getAttribute('data-live-base');
+      if (!original) {
+        original = element.textContent.trim();
+        element.setAttribute('data-live-base', original);
+      }
+
+      var parts = original.split(/\s+-\s+/);
+      if (parts.length < 2) return;
+
+      var home = parts[0].trim();
+      var away = parts.slice(1).join(' - ').trim();
+      var found = CUR.liveScores.find(function (score) {
+        return isTeamMatch(score.home, home) && isTeamMatch(score.away, away);
+      });
+
+      element.textContent = found
+        ? original + ' · Skor: ' + found.score
+        : original;
     });
   }
 
@@ -528,5 +553,7 @@
 
   // Her 30 saniyede bir JSON dosyasını çekip skorları günceller
   setInterval(fetchLiveScores, 30000);
+  // Ana analiz sekmelerinde sonradan çizilen maç satırlarını da güncelle
+  setInterval(updateMainMatchScores, 1000);
 
 })();
