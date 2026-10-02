@@ -1,4 +1,4 @@
-const CACHE='oran-analizi-v10';
+const CACHE='oran-analizi-v11';
 const FILES=['./','./index.html','./oran-analiz-canli.html','./data.js','./closing-data.js','./bugun.js','./manifest.json','./icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
