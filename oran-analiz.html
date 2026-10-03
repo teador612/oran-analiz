@@ -2208,7 +2208,377 @@ function init(){
 
 
 init();
+<script>
+/* =========================================================
+   İY KG VAR
+   İlk yarıda iki takım da gol attıysa VAR
+========================================================= */
 
+(function(){
+
+  /* ---------------------------------------------------------
+     1. MARKETİ EKLE
+  --------------------------------------------------------- */
+
+  if (
+    Array.isArray(window.MARKETS)
+  ){
+    window.MARKETS.push({
+      key: 'iyKgVar',
+      label: 'İY KG Var',
+      target: 'VAR'
+    });
+  }
+
+
+  /* ---------------------------------------------------------
+     2. ORAN ALANI
+     
+     Veri yapısındaki İY KG Var oranını farklı isimlerden
+     bulmaya çalışır.
+  --------------------------------------------------------- */
+
+  const originalGetOdd =
+    window.getOdd;
+
+
+  window.getOdd = function(row,key){
+
+    if (
+      key !== 'iyKgVar'
+    ){
+      return originalGetOdd
+        ? originalGetOdd(row,key)
+        : NaN;
+    }
+
+
+    const aliases = [
+
+      'iyKgVar',
+      'IYKgVar',
+      'IYKGVar',
+
+      'iyKG',
+      'iyKg',
+
+      'iyKgVarOdd',
+      'IYKgVarOdd',
+      'IYKGVarOdd',
+
+      'iy_kg_var',
+      'iy-kg-var',
+      'iykgvar',
+
+      'İY KG Var',
+      'İY KG VAR',
+
+      'IY KG Var',
+      'IY KG VAR',
+
+      'ilkYariKgVar',
+      'ilkYariKGVar',
+
+      'iyKgVarOran',
+      'IYKgVarOran'
+
+    ];
+
+
+    /* Doğrudan alan */
+
+    const direct =
+      findValueByNormalizedKeys(
+        row,
+        aliases
+      );
+
+
+    const directNumber =
+      toNumber(direct);
+
+
+    if (
+      Number.isFinite(directNumber) &&
+      directNumber > 0
+    ){
+      return directNumber;
+    }
+
+
+    /* İç oran nesneleri */
+
+    const nestedObjects = [
+
+      row?.odds,
+      row?.oranlar,
+      row?.oran,
+      row?.openingOdds,
+      row?.opening,
+      row?.acilisOranlari
+
+    ];
+
+
+    for (
+      const object of nestedObjects
+    ){
+
+      if (
+        !object ||
+        typeof object !== 'object'
+      ){
+        continue;
+      }
+
+
+      const value =
+        findValueByNormalizedKeys(
+          object,
+          aliases
+        );
+
+
+      const number =
+        toNumber(value);
+
+
+      if (
+        Number.isFinite(number) &&
+        number > 0
+      ){
+        return number;
+      }
+
+    }
+
+
+    /*
+       Alan isminde İY + KG + VAR geçen
+       alanları otomatik bul.
+    */
+
+    const containers = [
+      row,
+      ...nestedObjects
+    ];
+
+
+    for (
+      const object of containers
+    ){
+
+      if (
+        !object ||
+        typeof object !== 'object'
+      ){
+        continue;
+      }
+
+
+      const value =
+        findFirstMatchingField(
+          object,
+          ['iy','kg','var']
+        );
+
+
+      const number =
+        toNumber(value);
+
+
+      if (
+        Number.isFinite(number) &&
+        number > 0
+      ){
+        return number;
+      }
+
+    }
+
+
+    return NaN;
+
+  };
+
+
+  /* ---------------------------------------------------------
+     3. SONUCU HESAPLA
+     
+     İlk yarı skoruna bakılır.
+  --------------------------------------------------------- */
+
+  const originalGetResult =
+    window.getResult;
+
+
+  window.getResult = function(row,key){
+
+    if (
+      key !== 'iyKgVar'
+    ){
+
+      return originalGetResult
+        ? originalGetResult(row,key)
+        : '';
+
+    }
+
+
+    /*
+       Hazır sonuç alanı varsa önce onu kullan.
+    */
+
+    if (
+      row?.results &&
+      typeof row.results === 'object'
+    ){
+
+      const readyResult =
+        row.results[key];
+
+
+      if (
+        readyResult !== undefined &&
+        readyResult !== null &&
+        String(readyResult).trim() !== ''
+      ){
+
+        return String(
+          readyResult
+        )
+          .trim()
+          .toUpperCase();
+
+      }
+
+    }
+
+
+    /*
+       İlk yarı skorunu al.
+    */
+
+    const halfScore =
+      parseScore(
+        getHalfScore(row)
+      );
+
+
+    /*
+       İlk yarı skoru yoksa
+       sonuç hesaplanamaz.
+    */
+
+    if (!halfScore){
+      return '';
+    }
+
+
+    /*
+       İLK YARI KG VAR
+
+       Ev sahibi > 0
+       VE
+       Deplasman > 0
+
+       ise VAR.
+    */
+
+    if (
+      halfScore.home > 0 &&
+      halfScore.away > 0
+    ){
+
+      return 'VAR';
+
+    }
+
+
+    return '';
+
+  };
+
+
+  /* ---------------------------------------------------------
+     4. RENK
+  --------------------------------------------------------- */
+
+  const style =
+    document.createElement('style');
+
+
+  style.textContent = `
+
+    .rec-iykg{
+      border-color:#315a68;
+    }
+
+  `;
+
+
+  document.head.appendChild(style);
+
+
+  /* ---------------------------------------------------------
+     5. MEVCUT RENDER'DA İY KG VAR SINIFI
+  --------------------------------------------------------- */
+
+  const originalRenderMatches =
+    window.renderMatches;
+
+
+  if (
+    typeof originalRenderMatches === 'function'
+  ){
+
+    window.renderMatches =
+      function(){
+
+        originalRenderMatches();
+
+
+        document
+          .querySelectorAll('.recommendation')
+          .forEach(card => {
+
+            const label =
+              card.querySelector(
+                '.rec-label'
+              );
+
+
+            if (!label){
+              return;
+            }
+
+
+            const text =
+              label.textContent
+                .trim()
+                .toLocaleLowerCase(
+                  'tr-TR'
+                );
+
+
+            if (
+              text === 'iy kg var'
+            ){
+
+              card.classList.add(
+                'rec-iykg'
+              );
+
+            }
+
+          });
+
+      };
+
+  }
+
+})();
+</script>
 </script>
 
 </body>
