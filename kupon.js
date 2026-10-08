@@ -1,13 +1,12 @@
 "use strict";
 
 /* =========================================================
-   ORAN ANALİZİ - OTOMATİK KUPON (CANLISIZ / YÜKSEK PERFORMANS)
+   ORAN ANALİZİ - OTOMATİK KUPON (%70 BAŞARI & EN AZ 5 ÖRNEK)
    =========================================================
    - Otomatik kupon oluşturma
-   - 60 günlük geçmiş veri analizi
+   - En az 5 geçmiş maç örneği (sample >= 5)
+   - En az %70 başarı oranı (percentage >= 70)
    - Maksimum 5 maç, Toplam oran >= 2.00
-   - Doğrudan veri skor kontrolü (Kazandı / Kaybetti / Bekliyor)
-   - Tarih seçimi ve dinamik analiz
 ========================================================= */
 
 (function () {
@@ -21,6 +20,8 @@
   const HISTORY_DAYS = 60;
   const MIN_TOTAL_ODDS = 2.00;
   const MAX_MATCHES = 5;
+  const MIN_SAMPLE = 5;       // En az 5 maç örneği şartı
+  const MIN_PERCENTAGE = 70;  // En az %70 başarı oranı şartı
 
   /* =========================================================
      STATE
@@ -245,7 +246,7 @@
   }
 
   /* =========================================================
-     SKOR VEYA DURUM OKUMA (SADELEŞTİRİLDİ)
+     SKOR VEYA DURUM OKUMA
   ========================================================= */
 
   function getFTScore(row) {
@@ -291,6 +292,13 @@
   }
 
   function matchStatus(row) {
+    const rowDate = dateKey(row?.date);
+    const today = todayKey();
+
+    if (rowDate && rowDate > today) {
+      return "not_started";
+    }
+
     const ft = getFTScore(row);
     if (ft) return "finished";
 
@@ -299,11 +307,14 @@
       return "finished";
     }
 
+    if (["not_started", "scheduled", "upcoming", "prematch"].includes(s)) {
+      return "not_started";
+    }
+
     if (row?.played === true) return "finished";
     if (row?.played === false) return "not_started";
 
-    const rowDate = dateKey(row?.date);
-    if (rowDate && rowDate < todayKey()) {
+    if (rowDate && rowDate < today) {
       return "finished";
     }
 
@@ -491,6 +502,10 @@
     return maps;
   }
 
+  /* =========================================================
+     ADAYLAR (EN AZ 5 MAÇ & EN AZ %70 BAŞARI ŞARTI)
+  ========================================================= */
+
   function candidates(targetDate) {
     if (state.candidatesByDate.has(targetDate)) {
       return state.candidatesByDate.get(targetDate);
@@ -503,6 +518,8 @@
     const output = [];
 
     for (const row of rows) {
+      if (played(row)) continue;
+
       const predictions = [];
 
       for (const market of markets) {
@@ -513,6 +530,11 @@
         const sample = bucket?.sample || 0;
         const wins = bucket?.wins || 0;
         const percentage = sample ? (wins / sample) * 100 : 0;
+
+        // --- EN AZ 5 MAÇ ÖRNEĞİ VE %70 BAŞARI ŞARTI ---
+        if (sample < MIN_SAMPLE || percentage < MIN_PERCENTAGE) {
+          continue;
+        }
 
         predictions.push({
           market: market.key,
@@ -541,7 +563,7 @@
   }
 
   /* =========================================================
-     KUPON OLUSTURMA ALGORITMASI
+     KUPON OLUŞTURMA ALGORİTMASI
   ========================================================= */
 
   function score(prediction, type) {
@@ -554,17 +576,11 @@
     return prediction.odd * 12 + prediction.percentage * 0.35 + Math.min(prediction.sample, 20) * 0.1;
   }
 
-  function category(prediction, type) {
-    if (type === "safe") return prediction.percentage >= 80;
-    if (type === "medium") return prediction.percentage >= 65 && prediction.percentage < 80;
-    return prediction.percentage < 65;
-  }
-
   function bestForMatch(item, type) {
-    const list = item.predictions.filter(p => category(p, type));
+    const list = [...item.predictions];
     if (!list.length) return null;
 
-    list.sort((a, b) => score(b, type) - score(a, type));
+    list.sort((a, b) => score(b.prediction ?? b, type) - score(a.prediction ?? a, type));
     return list[0];
   }
 
@@ -753,7 +769,7 @@
           output.innerHTML = `
             <div class="no-coupon">
               <div class="no-coupon-title">Bu tarih için kupon oluşturulamadı.</div>
-              <div class="muted">Tahmin üretilebilecek maç bulunamadı.</div>
+              <div class="muted">En az ${MIN_SAMPLE} maç örneği ve %${MIN_PERCENTAGE} başarı şartını sağlayan maç bulunamadı.</div>
             </div>
           `;
           return;
@@ -799,7 +815,7 @@
           output.innerHTML = `
             <div class="no-coupon">
               <div class="no-coupon-title">2.00 ve üzeri kupon bulunamadı.</div>
-              <div class="muted">Tek kupon şartı toplam oranın en az 2.00 olmasıdır.</div>
+              <div class="muted">Kupon şartı en az 5 örnek, %70 başarı ve toplam oranın en az 2.00 olmasıdır.</div>
             </div>
           `;
         }
