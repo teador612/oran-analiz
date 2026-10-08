@@ -2,80 +2,67 @@
 
 /* =========================================================
    ORAN ANALİZİ - OTOMATİK KUPON
-
-   SKOR KAYNAĞI
    ---------------------------------------------------------
-   Yeni dosya yok.
-
-   Maçkolik1 mevcut:
-   https://teador612.github.io/mackolik1/data/matches.json
-
-   dosyasındaki skorlar kullanılır.
-
-   - Kupon oluştur butonu yok
-   - Tarih seçildiğinde otomatik çalışır
+   - Yeni skor dosyası YOK
+   - Maçkolik matches.json kullanılır
+   - Skorlar tek seferde indekslenir
+   - Tarih değişiminde donma yok
    - 60 günlük geçmiş
    - Maksimum 5 maç
    - Toplam oran >= 2.00
-   - Güvenli / Orta Güvenli / Risk Alınabilir
-   - Maçkolik skorları otomatik eşleştirilir
 ========================================================= */
 
 (function () {
+
   "use strict";
 
-  /* =========================================================
+  /* =======================================================
      AYARLAR
-  ========================================================= */
+  ======================================================= */
 
   const HISTORY_DAYS = 60;
   const MIN_TOTAL_ODDS = 2.00;
   const MAX_MATCHES = 5;
-  const CACHE_LIMIT = 40;
 
-  /*
-     BUGÜNÜN MAÇLARI MENÜSÜNDE DE KULLANILAN
-     AYNI SKOR KAYNAĞI
-  */
-  const LIVE_JSON_URL =
+  const SCORE_URL =
     "https://teador612.github.io/mackolik1/data/matches.json";
 
-  /*
-     Skorları belirli aralıklarla tekrar kontrol et.
-     Yeni dosya oluşturmaz.
-  */
   const SCORE_REFRESH_MS = 30000;
 
+  /* =======================================================
+     DURUM
+  ======================================================= */
+
   const state = {
+
     byDate: new Map(),
+
     historyByDate: new Map(),
+
     statsByDate: new Map(),
+
     candidatesByDate: new Map(),
 
     /*
-      Maçkolik skorları burada tutulur.
+      Maçkolik skor indeksleri
     */
-    liveScores: [],
+    scoreById: new Map(),
 
-    /*
-      Kod -> skor
-    */
-    scoreByCode: new Map(),
-
-    /*
-      takım -> skor listesi
-    */
-    scoreByTeams: [],
+    scoreByTeamKey: new Map(),
 
     scoresLoaded: false,
+
     scoreLoading: false,
+
     renderedDate: "",
-    refreshTimer: null
+
+    timer: null
+
   };
 
-  /* =========================================================
+  /* =======================================================
      SONUÇLAR
-  ========================================================= */
+  ======================================================= */
 
   const RESULT_KEYS = {
 
@@ -112,9 +99,9 @@
     depGoal: "VAR"
   };
 
-  /* =========================================================
+  /* =======================================================
      MARKETLER
-  ========================================================= */
+  ======================================================= */
 
   const MARKET_FALLBACK = [
 
@@ -151,19 +138,19 @@
     ["depGoal", "Deplasman gol atar"]
   ];
 
-  /* =========================================================
+  /* =======================================================
      ELEMENT
-  ========================================================= */
+  ======================================================= */
 
   function el(id) {
     return document.getElementById(id);
   }
 
-  /* =========================================================
+  /* =======================================================
      ESCAPE
-  ========================================================= */
+  ======================================================= */
 
-  function escape(value) {
+  function esc(value) {
 
     if (typeof window.esc === "function") {
       return window.esc(value);
@@ -183,11 +170,11 @@
     );
   }
 
-  /* =========================================================
-     SAYI
-  ========================================================= */
+  /* =======================================================
+     NUMBER
+  ======================================================= */
 
-  function number(value) {
+  function num(value) {
 
     if (
       value === null ||
@@ -208,9 +195,9 @@
       : null;
   }
 
-  /* =========================================================
-     TARİH
-  ========================================================= */
+  /* =======================================================
+     DATE
+  ======================================================= */
 
   function dateKey(value) {
 
@@ -221,205 +208,105 @@
       return "";
     }
 
-    let m =
-      text.match(
-        /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/
-      );
+    let m = text.match(
+      /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/
+    );
 
     if (m) {
-
       return (
-        `${m[1]}-` +
-        `${String(m[2]).padStart(2, "0")}-` +
-        `${String(m[3]).padStart(2, "0")}`
+        m[1] + "-" +
+        String(m[2]).padStart(2, "0") + "-" +
+        String(m[3]).padStart(2, "0")
       );
     }
 
-    m =
-      text.match(
-        /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/
-      );
+    m = text.match(
+      /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/
+    );
 
     if (m) {
-
       return (
-        `${m[3]}-` +
-        `${String(m[2]).padStart(2, "0")}-` +
-        `${String(m[1]).padStart(2, "0")}`
+        m[3] + "-" +
+        String(m[2]).padStart(2, "0") + "-" +
+        String(m[1]).padStart(2, "0")
       );
     }
 
-    const d =
-      new Date(text);
+    const d = new Date(text);
 
-    if (
-      Number.isNaN(
-        d.getTime()
-      )
-    ) {
+    if (Number.isNaN(d.getTime())) {
       return "";
     }
 
     return (
-      `${d.getFullYear()}-` +
-      `${String(
-        d.getMonth() + 1
-      ).padStart(2, "0")}-` +
-      `${String(
-        d.getDate()
-      ).padStart(2, "0")}`
+      d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0")
     );
   }
 
-  /* =========================================================
-     BUGÜN
-  ========================================================= */
+  /* =======================================================
+     TODAY
+  ======================================================= */
 
-  function todayKey() {
+  function today() {
 
-    const d =
-      new Date();
+    const d = new Date();
 
     return (
-      `${d.getFullYear()}-` +
-      `${String(
-        d.getMonth() + 1
-      ).padStart(2, "0")}-` +
-      `${String(
-        d.getDate()
-      ).padStart(2, "0")}`
+      d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0")
     );
   }
 
-  /* =========================================================
-     TARİHE GÜN EKLE
-  ========================================================= */
+  /* =======================================================
+     ADD DAYS
+  ======================================================= */
 
-  function addDays(
-    key,
-    amount
-  ) {
+  function addDays(key, amount) {
 
     const d =
-      new Date(
-        `${key}T00:00:00`
-      );
+      new Date(key + "T00:00:00");
 
     d.setDate(
       d.getDate() + amount
     );
 
     return (
-      `${d.getFullYear()}-` +
-      `${String(
-        d.getMonth() + 1
-      ).padStart(2, "0")}-` +
-      `${String(
-        d.getDate()
-      ).padStart(2, "0")}`
+      d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0")
     );
   }
 
-  /* =========================================================
-     TAKIM ADI NORMALİZE
-  ========================================================= */
+  /* =======================================================
+     TEAM NORMALIZE
+  ======================================================= */
 
-  function cleanTeamName(value) {
+  function teamKey(value) {
 
     return String(value ?? "")
       .toLocaleLowerCase("tr-TR")
-
       .normalize("NFD")
-      .replace(
-        /[\u0300-\u036f]/g,
-        ""
-      )
-
-      .replace(
-        /ı/g,
-        "i"
-      )
-
-      .replace(
-        /ğ/g,
-        "g"
-      )
-
-      .replace(
-        /ü/g,
-        "u"
-      )
-
-      .replace(
-        /ş/g,
-        "s"
-      )
-
-      .replace(
-        /ö/g,
-        "o"
-      )
-
-      .replace(
-        /ç/g,
-        "c"
-      )
-
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ı/g, "i")
+      .replace(/ğ/g, "g")
+      .replace(/ü/g, "u")
+      .replace(/ş/g, "s")
+      .replace(/ö/g, "o")
+      .replace(/ç/g, "c")
       .replace(
         /\b(fc|fk|sk|sc|sp|spor|club|cf|afc)\b/g,
         " "
       )
-
-      .replace(
-        /[^a-z0-9]/g,
-        ""
-      )
-
+      .replace(/[^a-z0-9]/g, "")
       .trim();
   }
 
-  /* =========================================================
-     TAKIMLAR EŞLEŞİYOR MU?
-  ========================================================= */
-
-  function teamsMatch(
-    a,
-    b
-  ) {
-
-    const x =
-      cleanTeamName(a);
-
-    const y =
-      cleanTeamName(b);
-
-    if (!x || !y) {
-      return false;
-    }
-
-    if (x === y) {
-      return true;
-    }
-
-    if (
-      x.length >= 4 &&
-      y.length >= 4
-    ) {
-
-      if (
-        x.includes(y) ||
-        y.includes(x)
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /* =========================================================
-     SKOR PARSE
-  ========================================================= */
+  /* =======================================================
+     SCORE PARSE
+  ======================================================= */
 
   function parseScore(value) {
 
@@ -431,102 +318,82 @@
       return null;
     }
 
-    /*
-      {home: 2, away: 1}
-    */
     if (
       typeof value === "object" &&
       !Array.isArray(value)
     ) {
 
-      const home =
-        number(
-          value.home ??
-          value.homeScore ??
-          value.h
-        );
+      const h = num(
+        value.home ??
+        value.homeScore ??
+        value.h
+      );
 
-      const away =
-        number(
-          value.away ??
-          value.awayScore ??
-          value.a
-        );
+      const a = num(
+        value.away ??
+        value.awayScore ??
+        value.a
+      );
 
       if (
-        home !== null &&
-        away !== null
+        h !== null &&
+        a !== null
       ) {
-
         return {
-          home,
-          away
+          home: h,
+          away: a
         };
       }
     }
 
-    /*
-      [2,1]
-    */
     if (
       Array.isArray(value) &&
       value.length >= 2
     ) {
 
-      const home =
-        number(value[0]);
-
-      const away =
-        number(value[1]);
+      const h = num(value[0]);
+      const a = num(value[1]);
 
       if (
-        home !== null &&
-        away !== null
+        h !== null &&
+        a !== null
       ) {
-
         return {
-          home,
-          away
+          home: h,
+          away: a
         };
       }
     }
 
-    /*
-      "2 - 1"
-      "2-1"
-      "2:1"
-    */
-    const match =
+    const m =
       String(value)
         .trim()
         .match(
           /(\d+)\s*[-:]\s*(\d+)/
         );
 
-    if (!match) {
+    if (!m) {
       return null;
     }
 
     return {
-      home: Number(match[1]),
-      away: Number(match[2])
+      home: Number(m[1]),
+      away: Number(m[2])
     };
   }
 
-  /* =========================================================
-     MAÇKOLİK SKOR OBJEKTİ
-  ========================================================= */
+  /* =======================================================
+     SCORE FROM MACKOLIK RECORD
+  ======================================================= */
 
-  function parseMackolikMatch(m) {
+  function parseExternalMatch(m) {
 
     if (!m) {
       return null;
     }
 
     const ft =
-      parseScore(
-        m.score
-      );
+      parseScore(m.score);
 
     if (!ft) {
       return null;
@@ -541,48 +408,124 @@
         m.halfTime
       );
 
-    return {
-      code:
+    const id =
+      String(
         m.code ??
         m.id ??
         m.matchId ??
-        "",
+        ""
+      ).trim();
 
-      home:
+    const home =
+      String(
         m.home ??
-        "",
+        m.homeTeam ??
+        ""
+      ).trim();
 
-      away:
+    const away =
+      String(
         m.away ??
-        "",
+        m.awayTeam ??
+        ""
+      ).trim();
 
-      date:
-        dateKey(
-          m.date ??
-          m.matchDate
-        ),
-
-      time:
-        m.time ??
-        "",
-
+    return {
+      id,
+      home,
+      away,
+      date: dateKey(
+        m.date ??
+        m.matchDate
+      ),
+      time: m.time ?? "",
       ft,
-      ht,
-
-      raw: m
+      ht
     };
   }
 
-  /* =========================================================
-     MAÇKOLİK SKOR VERİSİNİ YÜKLE
-  ========================================================= */
+  /* =======================================================
+     SKOR İNDEKSİ
+  ======================================================= */
 
-  async function loadMackolikScores() {
+  function buildScoreIndex(matches) {
 
-    if (
-      state.scoreLoading
+    state.scoreById.clear();
+    state.scoreByTeamKey.clear();
+
+    for (
+      const raw of matches
     ) {
-      return false;
+
+      const item =
+        parseExternalMatch(raw);
+
+      if (!item) {
+        continue;
+      }
+
+      /*
+        ID index
+      */
+
+      if (item.id) {
+
+        state.scoreById.set(
+          item.id,
+          item
+        );
+      }
+
+      /*
+        Takım index
+      */
+
+      const h =
+        teamKey(item.home);
+
+      const a =
+        teamKey(item.away);
+
+      if (
+        h &&
+        a
+      ) {
+
+        const key =
+          h + "|" + a;
+
+        /*
+          Aynı isimde farklı tarihler
+          olabilir. Liste tutuyoruz.
+        */
+
+        if (
+          !state.scoreByTeamKey.has(key)
+        ) {
+
+          state.scoreByTeamKey.set(
+            key,
+            []
+          );
+        }
+
+        state.scoreByTeamKey
+          .get(key)
+          .push(item);
+      }
+    }
+
+    state.scoresLoaded = true;
+  }
+
+  /* =======================================================
+     SKOR JSON YÜKLE
+  ======================================================= */
+
+  async function loadScores() {
+
+    if (state.scoreLoading) {
+      return;
     }
 
     state.scoreLoading = true;
@@ -591,8 +534,8 @@
 
       const response =
         await fetch(
-          LIVE_JSON_URL +
-          "?_=" +
+          SCORE_URL +
+          "?v=" +
           Date.now(),
           {
             cache: "no-store"
@@ -601,124 +544,63 @@
 
       if (!response.ok) {
         throw new Error(
-          "Maçkolik JSON yüklenemedi"
+          "Skor verisi alınamadı"
         );
       }
 
-      const data =
+      const json =
         await response.json();
 
       const matches =
-        Array.isArray(data?.matches)
-          ? data.matches
+        Array.isArray(json?.matches)
+          ? json.matches
           : [];
 
-      const scores = [];
-
-      for (
-        const m of matches
-      ) {
-
-        const parsed =
-          parseMackolikMatch(m);
-
-        if (!parsed) {
-          continue;
-        }
-
-        scores.push(
-          parsed
-        );
-      }
-
-      state.liveScores =
-        scores;
-
-      state.scoreByCode.clear();
-
-      for (
-        const s of scores
-      ) {
-
-        if (
-          s.code !== null &&
-          s.code !== undefined &&
-          String(s.code).trim()
-        ) {
-
-          state.scoreByCode.set(
-            String(s.code),
-            s
-          );
-        }
-      }
-
-      state.scoreByTeams =
-        scores;
-
-      state.scoresLoaded =
-        true;
-
       /*
-        Skorlar geldi.
-        Mevcut aday/cache sonuçlarını temizle.
+        ÖNEMLİ:
+        Sadece bir kez index oluşturuyoruz.
       */
 
-      state.candidatesByDate.clear();
+      buildScoreIndex(matches);
 
       /*
-        Bugünün kuponunu yeniden çiz.
+        Skorlar değiştiğinde
+        sadece mevcut kuponu yenile.
       */
 
-      const input =
-        el("couponDate");
-
-      if (
-        input?.value
-      ) {
-
-        state.renderedDate =
-          "";
-
-        render(
-          input.value,
-          true
-        );
-      }
-
-      return true;
+      refreshVisibleCoupon();
 
     } catch (error) {
 
       console.warn(
-        "Maçkolik skorları alınamadı:",
+        "Kupon skorları:",
         error
       );
 
-      return false;
-
     } finally {
 
-      state.scoreLoading =
-        false;
+      state.scoreLoading = false;
     }
   }
 
-  /* =========================================================
-     DIŞ SKORU MAÇLA EŞLEŞTİR
-  ========================================================= */
+  /* =======================================================
+     EXTERNAL SCORE BUL
+     -------------------------------------------------------
+     BURASI ARTIK AĞIR DEĞİL.
+     Önceden hazırlanmış Map kullanıyor.
+  ======================================================= */
 
-  function findExternalScore(row) {
+  function externalScore(row) {
 
     if (!state.scoresLoaded) {
       return null;
     }
 
     /*
-      1. CODE / ID
+      Önce ID
     */
 
-    const possibleCodes = [
+    const ids = [
 
       row?.code,
       row?.id,
@@ -728,21 +610,25 @@
     ];
 
     for (
-      const code of possibleCodes
+      const id of ids
     ) {
 
       if (
-        code === null ||
-        code === undefined ||
-        String(code).trim() === ""
+        id === null ||
+        id === undefined
       ) {
         continue;
       }
 
+      const key =
+        String(id).trim();
+
+      if (!key) {
+        continue;
+      }
+
       const found =
-        state.scoreByCode.get(
-          String(code)
-        );
+        state.scoreById.get(key);
 
       if (found) {
         return found;
@@ -750,354 +636,245 @@
     }
 
     /*
-      2. EV SAHİBİ + DEPLASMAN
+      Sonra takım adı
     */
 
-    const home =
-      row?.home ??
-      row?.homeTeam ??
-      "";
+    const h =
+      teamKey(
+        row?.home ??
+        row?.homeTeam
+      );
 
-    const away =
-      row?.away ??
-      row?.awayTeam ??
-      "";
+    const a =
+      teamKey(
+        row?.away ??
+        row?.awayTeam
+      );
 
     if (
-      !home ||
-      !away
+      !h ||
+      !a
     ) {
       return null;
     }
 
-    /*
-      Önce tarih eşleşmesi olanları ara.
-    */
-
-    const rowDate =
-      dateKey(row?.date);
-
-    let found =
-      state.scoreByTeams.find(
-        s => {
-
-          if (
-            rowDate &&
-            s.date &&
-            rowDate !== s.date
-          ) {
-            return false;
-          }
-
-          return (
-            teamsMatch(
-              s.home,
-              home
-            ) &&
-            teamsMatch(
-              s.away,
-              away
-            )
-          );
-        }
+    const list =
+      state.scoreByTeamKey.get(
+        h + "|" + a
       );
 
-    if (found) {
-      return found;
+    if (!list?.length) {
+      return null;
     }
 
+    const d =
+      dateKey(row?.date);
+
     /*
-      Tarih eşleşmesi yoksa
-      sadece takım isimleri.
+      Tarih eşleşmesi öncelikli.
     */
 
-    found =
-      state.scoreByTeams.find(
-        s =>
-          teamsMatch(
-            s.home,
-            home
-          ) &&
-          teamsMatch(
-            s.away,
-            away
-          )
+    const exact =
+      list.find(
+        x =>
+          !d ||
+          !x.date ||
+          x.date === d
       );
 
-    return found || null;
+    return exact || list[0];
   }
 
-  /* =========================================================
-     FULL TIME SKOR
-  ========================================================= */
+  /* =======================================================
+     FT
+  ======================================================= */
 
-  function getFTScore(row) {
+  function getFT(row) {
 
     /*
-      1. ORAN_DATA içindeki skor
+      Önce ORAN_DATA
     */
 
-    const localCandidates = [
+    const local = [
 
       row?.scoreFT,
-
       row?.fullTimeScore,
-
       row?.ftScore,
-
       row?.score?.fullTime,
-
       row?.score?.ft,
-
-      /*
-        score doğrudan obje ise
-      */
       row?.score
 
     ];
 
     for (
-      const value of localCandidates
+      const value of local
     ) {
 
-      const score =
+      const s =
         parseScore(value);
 
-      if (score) {
-        return score;
+      if (s) {
+        return s;
       }
     }
 
     /*
-      2. MAÇKOLİK JSON
+      Sonra indekslenmiş Maçkolik.
     */
 
-    const external =
-      findExternalScore(row);
+    const ext =
+      externalScore(row);
 
-    if (
-      external?.ft
-    ) {
-
-      return external.ft;
-    }
-
-    return null;
+    return ext?.ft || null;
   }
 
-  /* =========================================================
-     İLK YARI SKOR
-  ========================================================= */
+  /* =======================================================
+     HT
+  ======================================================= */
 
-  function getHTScore(row) {
+  function getHT(row) {
 
-    const localCandidates = [
+    const local = [
 
       row?.scoreHT,
-
       row?.halfTimeScore,
-
       row?.htScore,
-
       row?.score?.halfTime,
-
       row?.score?.ht,
-
       row?.halfTime
 
     ];
 
     for (
-      const value of localCandidates
+      const value of local
     ) {
 
-      const score =
+      const s =
         parseScore(value);
 
-      if (score) {
-        return score;
+      if (s) {
+        return s;
       }
     }
 
-    const external =
-      findExternalScore(row);
+    const ext =
+      externalScore(row);
 
-    if (
-      external?.ht
+    return ext?.ht || null;
+  }
+
+  /* =======================================================
+     OYNANMIŞ
+  ======================================================= */
+
+  function played(row) {
+
+    /*
+      Skor varsa skor önceliklidir.
+      Böylece 0-0 da oynanmış kabul edilir.
+    */
+
+    if (getFT(row)) {
+      return true;
+    }
+
+    if (row?.played === true) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /* =======================================================
+     ORAN
+  ======================================================= */
+
+  function getOdd(row, market) {
+
+    const direct =
+      num(
+        row?.odds?.[market.key]
+      );
+
+    if (direct !== null) {
+      return direct;
+    }
+
+    const containers = [
+
+      row?.openingOdds,
+      row?.opening_odds,
+      row?.opening,
+      row?.odds,
+      row?.Odds
+
+    ];
+
+    for (
+      const c of containers
     ) {
 
-      return external.ht;
+      const n =
+        num(
+          c?.[market.key]
+        );
+
+      if (n !== null) {
+        return n;
+      }
     }
 
     return null;
   }
 
-  /* =========================================================
-     SKOR VAR MI?
-  ========================================================= */
+  /* =======================================================
+     MARKETLER
+  ======================================================= */
 
-  function hasScore(row) {
+  function getMarkets() {
 
-    return Boolean(
-      getFTScore(row)
-    );
-  }
+    const source =
+      Array.isArray(
+        window.ORAN_MARKETS
+      ) &&
+      window.ORAN_MARKETS.length
 
-  /* =========================================================
-     MAÇ DURUMU
-  ========================================================= */
+        ? window.ORAN_MARKETS.map(
+            x => [
+              x.key,
+              x.label
+            ]
+          )
 
-  function matchStatus(row) {
+        : MARKET_FALLBACK;
 
-    const status =
-      String(
-        row?.status ??
-        row?.matchStatus ??
-        row?.state ??
-        ""
+    return source
+      .filter(
+        x =>
+          Object.prototype.hasOwnProperty.call(
+            RESULT_KEYS,
+            x[0]
+          )
       )
-        .trim()
-        .toLowerCase();
-
-    if (
-      [
-        "finished",
-        "finished_final",
-        "ft",
-        "ended",
-        "completed",
-        "final",
-        "finished-final"
-      ].includes(status)
-    ) {
-
-      return "finished";
-    }
-
-    if (
-      [
-        "live",
-        "playing",
-        "inplay",
-        "in-play",
-        "ongoing"
-      ].includes(status)
-    ) {
-
-      return "live";
-    }
-
-    if (
-      [
-        "not_started",
-        "not-started",
-        "scheduled",
-        "upcoming",
-        "pending"
-      ].includes(status)
-    ) {
-
-      return "not_started";
-    }
-
-    /*
-      Açıkça oynanmış deniyorsa.
-    */
-
-    if (
-      row?.played === true
-    ) {
-
-      return "finished";
-    }
-
-    /*
-      Açıkça oynanmamış deniyorsa.
-    */
-
-    if (
-      row?.played === false
-    ) {
-
-      /*
-        Ama Maçkolik'te skor varsa
-        skor önceliklidir.
-      */
-
-      if (
-        hasScore(row)
-      ) {
-
-        return "finished";
-      }
-
-      return "not_started";
-    }
-
-    /*
-      Skor varsa oynanmış kabul edilir.
-    */
-
-    if (
-      hasScore(row)
-    ) {
-
-      return "finished";
-    }
-
-    return "";
+      .map(
+        x => ({
+          key: x[0],
+          label: x[1],
+          result:
+            RESULT_KEYS[x[0]]
+        })
+      );
   }
 
-  /* =========================================================
-     OYNANMIŞ MI?
-  ========================================================= */
+  /* =======================================================
+     SONUÇ
+  ======================================================= */
 
-  function played(row) {
-
-    const status =
-      matchStatus(row);
-
-    if (
-      status === "finished"
-    ) {
-
-      return true;
-    }
-
-    if (
-      status === "live"
-    ) {
-
-      return false;
-    }
-
-    if (
-      status === "not_started"
-    ) {
-
-      return false;
-    }
-
-    return hasScore(row);
-  }
-
-  /* =========================================================
-     SONUÇ HESAPLA
-  ========================================================= */
-
-  function result(
-    row,
-    key
-  ) {
-
-    /*
-      Hazır sonuç varsa kullan.
-    */
+  function result(row, key) {
 
     if (
       row?.results &&
       row.results[key] !== undefined &&
-      row.results[key] !== null &&
       row.results[key] !== ""
     ) {
 
@@ -1107,14 +884,10 @@
     }
 
     const ft =
-      getFTScore(row);
+      getFT(row);
 
     const ht =
-      getHTScore(row);
-
-    /*
-      İY marketleri için HT zorunlu.
-    */
+      getHT(row);
 
     const needsHT =
       key === "iy1" ||
@@ -1129,286 +902,138 @@
       needsHT &&
       !ht
     ) {
-
       return "";
     }
-
-    /*
-      MS marketleri için FT zorunlu.
-    */
 
     if (
       !needsHT &&
       !ft
     ) {
-
       return "";
     }
 
-    const fh =
-      ht?.home ?? 0;
+    const fh = ht?.home ?? 0;
+    const fa = ht?.away ?? 0;
 
-    const fa =
-      ht?.away ?? 0;
+    const x = ft?.home ?? 0;
+    const y = ft?.away ?? 0;
 
-    const x =
-      ft?.home ?? 0;
-
-    const y =
-      ft?.away ?? 0;
-
-    const firstTotal =
+    const htTotal =
       fh + fa;
 
-    const total =
+    const ftTotal =
       x + y;
 
-    /* =====================================================
-       MS 1 / X / 2
-    ===================================================== */
+    /* MS */
 
-    if (
-      key === "ms1"
-    ) {
-
-      return x > y
-        ? "1"
-        : x === y
-          ? "X"
-          : "2";
+    if (key === "ms1") {
+      return x > y ? "1" : x === y ? "X" : "2";
     }
 
-    if (
-      key === "ms0"
-    ) {
-
-      return x === y
-        ? "X"
-        : x > y
-          ? "1"
-          : "2";
+    if (key === "ms0") {
+      return x === y ? "X" : x > y ? "1" : "2";
     }
 
-    if (
-      key === "ms2"
-    ) {
-
-      return x < y
-        ? "2"
-        : x === y
-          ? "X"
-          : "1";
+    if (key === "ms2") {
+      return x < y ? "2" : x === y ? "X" : "1";
     }
 
-    /* =====================================================
-       İY 1 / X / 2
-    ===================================================== */
+    /* İY */
 
-    if (
-      key === "iy1"
-    ) {
-
-      return fh > fa
-        ? "1"
-        : fh === fa
-          ? "X"
-          : "2";
+    if (key === "iy1") {
+      return fh > fa ? "1" : fh === fa ? "X" : "2";
     }
 
-    if (
-      key === "iy0"
-    ) {
-
-      return fh === fa
-        ? "X"
-        : fh > fa
-          ? "1"
-          : "2";
+    if (key === "iy0") {
+      return fh === fa ? "X" : fh > fa ? "1" : "2";
     }
 
-    if (
-      key === "iy2"
-    ) {
-
-      return fh < fa
-        ? "2"
-        : fh === fa
-          ? "X"
-          : "1";
+    if (key === "iy2") {
+      return fh < fa ? "2" : fh === fa ? "X" : "1";
     }
 
-    /* =====================================================
-       KG VAR / YOK
-    ===================================================== */
+    /* KG */
 
-    if (
-      key === "kgVar"
-    ) {
-
-      return (
-        x > 0 &&
-        y > 0
-      )
-        ? "VAR"
-        : "YOK";
+    if (key === "kgVar") {
+      return x > 0 && y > 0 ? "VAR" : "YOK";
     }
 
-    if (
-      key === "kgYok"
-    ) {
-
-      return (
-        x > 0 &&
-        y > 0
-      )
-        ? "VAR"
-        : "YOK";
+    if (key === "kgYok") {
+      return x > 0 && y > 0 ? "VAR" : "YOK";
     }
 
-    /* =====================================================
-       İY 0.5
-    ===================================================== */
+    /* İY 0.5 */
 
-    if (
-      key === "iyOver05"
-    ) {
-
-      return firstTotal > 0.5
-        ? "ÜST"
-        : "ALT";
+    if (key === "iyOver05") {
+      return htTotal > 0.5 ? "ÜST" : "ALT";
     }
 
-    if (
-      key === "iyUnder05"
-    ) {
-
-      return firstTotal <= 0.5
-        ? "ALT"
-        : "ÜST";
+    if (key === "iyUnder05") {
+      return htTotal <= 0.5 ? "ALT" : "ÜST";
     }
 
-    /* =====================================================
-       İY 1.5
-    ===================================================== */
+    /* İY 1.5 */
 
-    if (
-      key === "iyOver15"
-    ) {
-
-      return firstTotal > 1.5
-        ? "ÜST"
-        : "ALT";
+    if (key === "iyOver15") {
+      return htTotal > 1.5 ? "ÜST" : "ALT";
     }
 
-    if (
-      key === "iyUnder15"
-    ) {
-
-      return firstTotal <= 1.5
-        ? "ALT"
-        : "ÜST";
+    if (key === "iyUnder15") {
+      return htTotal <= 1.5 ? "ALT" : "ÜST";
     }
 
-    /* =====================================================
-       MS 1.5
-    ===================================================== */
+    /* MS 1.5 */
 
-    if (
-      key === "msOver15"
-    ) {
-
-      return total > 1.5
-        ? "ÜST"
-        : "ALT";
+    if (key === "msOver15") {
+      return ftTotal > 1.5 ? "ÜST" : "ALT";
     }
 
-    if (
-      key === "msUnder15"
-    ) {
-
-      return total <= 1.5
-        ? "ALT"
-        : "ÜST";
+    if (key === "msUnder15") {
+      return ftTotal <= 1.5 ? "ALT" : "ÜST";
     }
 
-    /* =====================================================
-       MS 2.5
-    ===================================================== */
+    /* MS 2.5 */
 
     if (
       key === "over25" ||
       key === "msOver25"
     ) {
-
-      return total > 2.5
-        ? "ÜST"
-        : "ALT";
+      return ftTotal > 2.5 ? "ÜST" : "ALT";
     }
 
     if (
       key === "under25" ||
       key === "msUnder25"
     ) {
-
-      return total <= 2.5
-        ? "ALT"
-        : "ÜST";
+      return ftTotal <= 2.5 ? "ALT" : "ÜST";
     }
 
-    /* =====================================================
-       MS 3.5
-    ===================================================== */
+    /* MS 3.5 */
 
-    if (
-      key === "msOver35"
-    ) {
-
-      return total > 3.5
-        ? "ÜST"
-        : "ALT";
+    if (key === "msOver35") {
+      return ftTotal > 3.5 ? "ÜST" : "ALT";
     }
 
-    if (
-      key === "msUnder35"
-    ) {
-
-      return total <= 3.5
-        ? "ALT"
-        : "ÜST";
+    if (key === "msUnder35") {
+      return ftTotal <= 3.5 ? "ALT" : "ÜST";
     }
 
-    /* =====================================================
-       EV GOL
-    ===================================================== */
+    /* GOL */
 
-    if (
-      key === "evGoal"
-    ) {
-
-      return x > 0
-        ? "VAR"
-        : "YOK";
+    if (key === "evGoal") {
+      return x > 0 ? "VAR" : "YOK";
     }
 
-    /* =====================================================
-       DEP GOL
-    ===================================================== */
-
-    if (
-      key === "depGoal"
-    ) {
-
-      return y > 0
-        ? "VAR"
-        : "YOK";
+    if (key === "depGoal") {
+      return y > 0 ? "VAR" : "YOK";
     }
 
     return "";
   }
 
-  /* =========================================================
-     MAÇ ID
-  ========================================================= */
+  /* =======================================================
+     ID
+  ======================================================= */
 
   function matchId(row) {
 
@@ -1418,25 +1043,605 @@
       row?.matchId ??
       row?.mackolikId ??
       (
-        `${row?.home ?? ""}|` +
-        `${row?.away ?? ""}|` +
-        `${dateKey(row?.date)}|` +
-        `${row?.time ?? ""}`
+        String(row?.home ?? "") +
+        "|" +
+        String(row?.away ?? "") +
+        "|" +
+        dateKey(row?.date) +
+        "|" +
+        String(row?.time ?? "")
       )
     );
   }
 
-  /* =========================================================
-     SKOR YAZISI
-  ========================================================= */
+  /* =======================================================
+     DATE INDEX
+  ======================================================= */
+
+  function buildDateIndex() {
+
+    state.byDate.clear();
+
+    const data =
+      Array.isArray(
+        window.ORAN_DATA
+      )
+        ? window.ORAN_DATA
+        : [];
+
+    for (
+      const row of data
+    ) {
+
+      const d =
+        dateKey(row?.date);
+
+      if (!d) {
+        continue;
+      }
+
+      if (
+        !state.byDate.has(d)
+      ) {
+        state.byDate.set(
+          d,
+          []
+        );
+      }
+
+      state.byDate
+        .get(d)
+        .push(row);
+    }
+  }
+
+  /* =======================================================
+     HISTORY
+  ======================================================= */
+
+  function getHistory(targetDate) {
+
+    if (
+      state.historyByDate.has(
+        targetDate
+      )
+    ) {
+      return state.historyByDate.get(
+        targetDate
+      );
+    }
+
+    const minDate =
+      addDays(
+        targetDate,
+        -HISTORY_DAYS
+      );
+
+    const data =
+      Array.isArray(
+        window.ORAN_DATA
+      )
+        ? window.ORAN_DATA
+        : [];
+
+    const history = [];
+
+    for (
+      const row of data
+    ) {
+
+      const d =
+        dateKey(row?.date);
+
+      if (!d) {
+        continue;
+      }
+
+      if (
+        d >= targetDate ||
+        d < minDate
+      ) {
+        continue;
+      }
+
+      if (
+        !played(row)
+      ) {
+        continue;
+      }
+
+      history.push(row);
+    }
+
+    state.historyByDate.set(
+      targetDate,
+      history
+    );
+
+    return history;
+  }
+
+  /* =======================================================
+     STATS
+  ======================================================= */
+
+  function buildStats(targetDate) {
+
+    if (
+      state.statsByDate.has(
+        targetDate
+      )
+    ) {
+      return state.statsByDate.get(
+        targetDate
+      );
+    }
+
+    const stats =
+      new Map();
+
+    const history =
+      getHistory(
+        targetDate
+      );
+
+    for (
+      const market of getMarkets()
+    ) {
+
+      const odds =
+        new Map();
+
+      for (
+        const row of history
+      ) {
+
+        const odd =
+          getOdd(
+            row,
+            market
+          );
+
+        if (
+          odd === null
+        ) {
+          continue;
+        }
+
+        const key =
+          odd.toFixed(2);
+
+        let item =
+          odds.get(key);
+
+        if (!item) {
+
+          item = {
+            odd,
+            sample: 0,
+            wins: 0
+          };
+
+          odds.set(
+            key,
+            item
+          );
+        }
+
+        const r =
+          result(
+            row,
+            market.key
+          );
+
+        if (!r) {
+          continue;
+        }
+
+        item.sample++;
+
+        if (
+          r ===
+          market.result
+        ) {
+          item.wins++;
+        }
+      }
+
+      stats.set(
+        market.key,
+        odds
+      );
+    }
+
+    state.statsByDate.set(
+      targetDate,
+      stats
+    );
+
+    return stats;
+  }
+
+  /* =======================================================
+     CANDIDATES
+  ======================================================= */
+
+  function candidates(targetDate) {
+
+    if (
+      state.candidatesByDate.has(
+        targetDate
+      )
+    ) {
+      return state.candidatesByDate.get(
+        targetDate
+      );
+    }
+
+    const rows =
+      state.byDate.get(
+        targetDate
+      ) || [];
+
+    const stats =
+      buildStats(
+        targetDate
+      );
+
+    const output = [];
+
+    for (
+      const row of rows
+    ) {
+
+      if (
+        played(row)
+      ) {
+        continue;
+      }
+
+      const predictions = [];
+
+      for (
+        const market of getMarkets()
+      ) {
+
+        const odd =
+          getOdd(
+            row,
+            market
+          );
+
+        if (
+          odd === null ||
+          odd <= 1
+        ) {
+          continue;
+        }
+
+        const bucket =
+          stats
+            .get(market.key)
+            ?.get(
+              odd.toFixed(2)
+            );
+
+        const sample =
+          bucket?.sample || 0;
+
+        const wins =
+          bucket?.wins || 0;
+
+        const percentage =
+          sample
+            ? wins / sample * 100
+            : 0;
+
+        predictions.push({
+
+          market: market.key,
+
+          name: market.label,
+
+          result: market.result,
+
+          odd,
+
+          sample,
+
+          wins,
+
+          percentage
+
+        });
+      }
+
+      if (!predictions.length) {
+        continue;
+      }
+
+      predictions.sort(
+        (a, b) =>
+          b.percentage -
+          a.percentage ||
+          b.sample -
+          a.sample ||
+          b.odd -
+          a.odd
+      );
+
+      output.push({
+        row,
+        predictions
+      });
+    }
+
+    state.candidatesByDate.set(
+      targetDate,
+      output
+    );
+
+    return output;
+  }
+
+  /* =======================================================
+     SCORE
+  ======================================================= */
+
+  function predictionScore(
+    p,
+    type
+  ) {
+
+    if (type === "safe") {
+
+      return (
+        p.percentage +
+        Math.min(
+          p.sample,
+          30
+        ) * 0.35 -
+        p.odd * 0.02
+      );
+    }
+
+    if (type === "medium") {
+
+      return (
+        p.percentage * 0.70 +
+        Math.min(p.odd, 3) * 10 +
+        Math.min(p.sample, 20) * 0.15
+      );
+    }
+
+    return (
+      p.odd * 12 +
+      p.percentage * 0.35 +
+      Math.min(p.sample, 20) * 0.1
+    );
+  }
+
+  /* =======================================================
+     CATEGORY
+  ======================================================= */
+
+  function allowed(
+    p,
+    type
+  ) {
+
+    if (type === "safe") {
+      return p.percentage >= 80;
+    }
+
+    if (type === "medium") {
+      return (
+        p.percentage >= 65 &&
+        p.percentage < 80
+      );
+    }
+
+    return p.percentage < 65;
+  }
+
+  /* =======================================================
+     BEST
+  ======================================================= */
+
+  function bestForMatch(
+    item,
+    type
+  ) {
+
+    const list =
+      item.predictions.filter(
+        p =>
+          allowed(
+            p,
+            type
+          )
+      );
+
+    if (!list.length) {
+      return null;
+    }
+
+    list.sort(
+      (a, b) =>
+        predictionScore(b, type) -
+        predictionScore(a, type)
+    );
+
+    return list[0];
+  }
+
+  /* =======================================================
+     COUPON
+  ======================================================= */
+
+  function buildCoupon(
+    items,
+    type,
+    blocked
+  ) {
+
+    const list = [];
+
+    for (
+      const item of items
+    ) {
+
+      const id =
+        matchId(
+          item.row
+        );
+
+      if (
+        blocked.has(id)
+      ) {
+        continue;
+      }
+
+      const prediction =
+        bestForMatch(
+          item,
+          type
+        );
+
+      if (!prediction) {
+        continue;
+      }
+
+      list.push({
+        row: item.row,
+        prediction
+      });
+    }
+
+    list.sort(
+      (a, b) =>
+        predictionScore(
+          b.prediction,
+          type
+        ) -
+        predictionScore(
+          a.prediction,
+          type
+        ) ||
+        b.prediction.odd -
+        a.prediction.odd
+    );
+
+    const selected = [];
+
+    let total = 1;
+
+    for (
+      const item of list
+    ) {
+
+      if (
+        selected.length >=
+        MAX_MATCHES
+      ) {
+        break;
+      }
+
+      selected.push(item);
+
+      total *=
+        item.prediction.odd;
+
+      if (
+        total >=
+        MIN_TOTAL_ODDS
+      ) {
+        break;
+      }
+    }
+
+    if (
+      total <
+      MIN_TOTAL_ODDS
+    ) {
+      return null;
+    }
+
+    return {
+      matches: selected,
+      totalOdds: total
+    };
+  }
+
+  /* =======================================================
+     STATUS
+  ======================================================= */
+
+  function couponStatus(coupon) {
+
+    let pending = false;
+    let lost = false;
+
+    for (
+      const item of coupon.matches
+    ) {
+
+      const ft =
+        getFT(
+          item.row
+        );
+
+      if (!ft) {
+
+        pending = true;
+
+        continue;
+      }
+
+      const actual =
+        result(
+          item.row,
+          item.prediction.market
+        );
+
+      if (!actual) {
+
+        pending = true;
+
+        continue;
+      }
+
+      if (
+        actual !==
+        item.prediction.result
+      ) {
+
+        lost = true;
+      }
+    }
+
+    if (lost) {
+      return ["lost", "Kaybetti"];
+    }
+
+    if (pending) {
+      return ["pending", "Bekliyor"];
+    }
+
+    return ["won", "Kazandı"];
+  }
+
+  /* =======================================================
+     SCORE TEXT
+  ======================================================= */
 
   function scoreText(row) {
 
     const ft =
-      getFTScore(row);
+      getFT(row);
 
     const ht =
-      getHTScore(row);
+      getHT(row);
 
     if (!ft) {
       return "";
@@ -1460,899 +1665,47 @@
     `;
   }
 
-  /* =========================================================
-     TARİH İNDEKSİ
-  ========================================================= */
+  /* =======================================================
+     PREDICTION HTML
+  ======================================================= */
 
-  function buildDateIndex() {
+  function renderPrediction(item) {
 
-    state.byDate.clear();
-
-    const data =
-      Array.isArray(
-        window.ORAN_DATA
-      )
-        ? window.ORAN_DATA
-        : [];
-
-    for (
-      const row of data
-    ) {
-
-      const key =
-        dateKey(row?.date);
-
-      if (!key) {
-        continue;
-      }
-
-      if (
-        !state.byDate.has(key)
-      ) {
-
-        state.byDate.set(
-          key,
-          []
-        );
-      }
-
-      state.byDate
-        .get(key)
-        .push(row);
-    }
-  }
-
-  /* =========================================================
-     GEÇMİŞ
-  ========================================================= */
-
-  function getHistory(
-    targetDate
-  ) {
-
-    if (
-      state.historyByDate.has(
-        targetDate
-      )
-    ) {
-
-      return state.historyByDate.get(
-        targetDate
-      );
-    }
-
-    const minDate =
-      addDays(
-        targetDate,
-        -HISTORY_DAYS
-      );
-
-    const history = [];
-
-    for (
-      const row of (
-        Array.isArray(
-          window.ORAN_DATA
-        )
-          ? window.ORAN_DATA
-          : []
-      )
-    ) {
-
-      const d =
-        dateKey(row?.date);
-
-      if (!d) {
-        continue;
-      }
-
-      if (
-        d >= targetDate
-      ) {
-        continue;
-      }
-
-      if (
-        d < minDate
-      ) {
-        continue;
-      }
-
-      if (
-        !played(row)
-      ) {
-        continue;
-      }
-
-      history.push(row);
-    }
-
-    state.historyByDate.set(
-      targetDate,
-      history
-    );
-
-    trimCache(
-      state.historyByDate
-    );
-
-    return history;
-  }
-
-  /* =========================================================
-     CACHE
-  ========================================================= */
-
-  function trimCache(map) {
-
-    while (
-      map.size >
-      CACHE_LIMIT
-    ) {
-
-      const first =
-        map.keys()
-          .next()
-          .value;
-
-      map.delete(first);
-    }
-  }
-
-  /* =========================================================
-     ORAN BUL
-  ========================================================= */
-
-  function getOdd(
-    row,
-    market
-  ) {
-
-    const direct =
-      number(
-        row?.odds?.[
-          market.key
-        ]
-      );
-
-    if (
-      direct !== null
-    ) {
-
-      return direct;
-    }
-
-    const containers = [
-
-      row?.openingOdds,
-      row?.opening_odds,
-      row?.opening,
-      row?.odds,
-      row?.Odds
-
-    ];
-
-    for (
-      const container of containers
-    ) {
-
-      const n =
-        number(
-          container?.[
-            market.key
-          ]
-        );
-
-      if (
-        n !== null
-      ) {
-
-        return n;
-      }
-    }
-
-    return null;
-  }
-
-  /* =========================================================
-     MARKETLERİ AL
-  ========================================================= */
-
-  function getMarkets() {
-
-    const source =
-      Array.isArray(
-        window.ORAN_MARKETS
-      ) &&
-      window.ORAN_MARKETS.length
-
-        ? window.ORAN_MARKETS.map(
-            x => [
-              x.key,
-              x.label
-            ]
-          )
-
-        : MARKET_FALLBACK;
-
-    return source
-      .filter(
-        ([key]) =>
-          Object.prototype
-            .hasOwnProperty.call(
-              RESULT_KEYS,
-              key
-            )
-      )
-      .map(
-        ([key, label]) => ({
-          key,
-          label,
-          result:
-            RESULT_KEYS[key]
-        })
-      );
-  }
-
-  /* =========================================================
-     İSTATİSTİK
-  ========================================================= */
-
-  function buildStats(
-    targetDate
-  ) {
-
-    if (
-      state.statsByDate.has(
-        targetDate
-      )
-    ) {
-
-      return state.statsByDate.get(
-        targetDate
-      );
-    }
-
-    const history =
-      getHistory(
-        targetDate
-      );
-
-    const maps =
-      new Map();
-
-    for (
-      const market of getMarkets()
-    ) {
-
-      const oddsMap =
-        new Map();
-
-      for (
-        const row of history
-      ) {
-
-        const odd =
-          getOdd(
-            row,
-            market
-          );
-
-        if (
-          odd === null
-        ) {
-          continue;
-        }
-
-        const key =
-          odd.toFixed(2);
-
-        let item =
-          oddsMap.get(key);
-
-        if (!item) {
-
-          item = {
-            odd,
-            sample: 0,
-            wins: 0
-          };
-
-          oddsMap.set(
-            key,
-            item
-          );
-        }
-
-        const outcome =
-          result(
-            row,
-            market.key
-          );
-
-        if (!outcome) {
-          continue;
-        }
-
-        item.sample++;
-
-        if (
-          outcome ===
-          market.result
-        ) {
-
-          item.wins++;
-        }
-      }
-
-      maps.set(
-        market.key,
-        oddsMap
-      );
-    }
-
-    state.statsByDate.set(
-      targetDate,
-      maps
-    );
-
-    trimCache(
-      state.statsByDate
-    );
-
-    return maps;
-  }
-
-  /* =========================================================
-     ADAYLAR
-  ========================================================= */
-
-  function candidates(
-    targetDate
-  ) {
-
-    if (
-      state.candidatesByDate.has(
-        targetDate
-      )
-    ) {
-
-      return state.candidatesByDate.get(
-        targetDate
-      );
-    }
-
-    buildDateIndex();
-
-    const rows =
-      state.byDate.get(
-        targetDate
-      ) || [];
-
-    const stats =
-      buildStats(
-        targetDate
-      );
-
-    const markets =
-      getMarkets();
-
-    const output = [];
-
-    for (
-      const row of rows
-    ) {
-
-      /*
-        Maç skorlandıysa artık
-        aday kupona girmez.
-      */
-
-      if (
-        played(row)
-      ) {
-
-        continue;
-      }
-
-      const predictions = [];
-
-      for (
-        const market of markets
-      ) {
-
-        const odd =
-          getOdd(
-            row,
-            market
-          );
-
-        if (
-          odd === null ||
-          odd <= 1
-        ) {
-
-          continue;
-        }
-
-        const bucket =
-          stats
-            .get(
-              market.key
-            )
-            ?.get(
-              odd.toFixed(2)
-            );
-
-        const sample =
-          bucket?.sample ||
-          0;
-
-        const wins =
-          bucket?.wins ||
-          0;
-
-        const percentage =
-          sample
-            ? (
-                wins /
-                sample
-              ) * 100
-            : 0;
-
-        predictions.push({
-
-          market:
-            market.key,
-
-          name:
-            market.label,
-
-          result:
-            market.result,
-
-          odd,
-
-          sample,
-
-          wins,
-
-          percentage
-        });
-      }
-
-      if (
-        !predictions.length
-      ) {
-
-        continue;
-      }
-
-      predictions.sort(
-        (a, b) =>
-          b.percentage -
-            a.percentage ||
-
-          b.sample -
-            a.sample ||
-
-          b.odd -
-            a.odd
-      );
-
-      output.push({
-
-        row,
-
-        predictions
-      });
-    }
-
-    state.candidatesByDate.set(
-      targetDate,
-      output
-    );
-
-    trimCache(
-      state.candidatesByDate
-    );
-
-    return output;
-  }
-
-  /* =========================================================
-     PUAN
-  ========================================================= */
-
-  function score(
-    prediction,
-    type
-  ) {
-
-    if (
-      type === "safe"
-    ) {
-
-      return (
-        prediction.percentage +
-        Math.min(
-          prediction.sample,
-          30
-        ) * 0.35 -
-        prediction.odd * 0.02
-      );
-    }
-
-    if (
-      type === "medium"
-    ) {
-
-      return (
-        prediction.percentage *
-          0.70 +
-
-        Math.min(
-          prediction.odd,
-          3
-        ) * 10 +
-
-        Math.min(
-          prediction.sample,
-          20
-        ) * 0.15
-      );
-    }
-
-    return (
-      prediction.odd * 12 +
-      prediction.percentage *
-        0.35 +
-      Math.min(
-        prediction.sample,
-        20
-      ) * 0.1
-    );
-  }
-
-  /* =========================================================
-     KATEGORİ
-  ========================================================= */
-
-  function category(
-    prediction,
-    type
-  ) {
-
-    if (
-      type === "safe"
-    ) {
-
-      return (
-        prediction.percentage >=
-        80
-      );
-    }
-
-    if (
-      type === "medium"
-    ) {
-
-      return (
-        prediction.percentage >=
-          65 &&
-        prediction.percentage <
-          80
-      );
-    }
-
-    return (
-      prediction.percentage <
-      65
-    );
-  }
-
-  /* =========================================================
-     MAÇIN EN İYİ TAHMİNİ
-  ========================================================= */
-
-  function bestForMatch(
-    item,
-    type
-  ) {
-
-    const list =
-      item.predictions.filter(
-        prediction =>
-          category(
-            prediction,
-            type
-          )
-      );
-
-    if (!list.length) {
-      return null;
-    }
-
-    list.sort(
-      (a, b) =>
-        score(b, type) -
-        score(a, type)
-    );
-
-    return list[0];
-  }
-
-  /* =========================================================
-     KUPON OLUŞTUR
-  ========================================================= */
-
-  function buildCoupon(
-    items,
-    type,
-    blocked
-  ) {
-
-    const list = [];
-
-    for (
-      const item of items
-    ) {
-
-      const id =
-        matchId(
-          item.row
-        );
-
-      if (
-        blocked.has(id)
-      ) {
-
-        continue;
-      }
-
-      const prediction =
-        bestForMatch(
-          item,
-          type
-        );
-
-      if (!prediction) {
-        continue;
-      }
-
-      list.push({
-
-        row:
-          item.row,
-
-        prediction
-      });
-    }
-
-    if (!list.length) {
-      return null;
-    }
-
-    list.sort(
-      (a, b) => {
-
-        const pa =
-          a.prediction;
-
-        const pb =
-          b.prediction;
-
-        return (
-          score(pb, type) -
-            score(pa, type) ||
-
-          pb.odd -
-            pa.odd
-        );
-      }
-    );
-
-    const selected = [];
-
-    let total = 1;
-
-    for (
-      const item of list
-    ) {
-
-      if (
-        selected.length >=
-        MAX_MATCHES
-      ) {
-
-        break;
-      }
-
-      selected.push(
-        item
-      );
-
-      total *=
-        item.prediction.odd;
-
-      if (
-        total >=
-        MIN_TOTAL_ODDS
-      ) {
-
-        break;
-      }
-    }
-
-    if (
-      total <
-      MIN_TOTAL_ODDS
-    ) {
-
-      return null;
-    }
-
-    return {
-
-      type,
-
-      matches:
-        selected,
-
-      totalOdds:
-        total
-    };
-  }
-
-  /* =========================================================
-     KUPON DURUMU
-  ========================================================= */
-
-  function statusForCoupon(
-    coupon
-  ) {
-
-    let pending =
-      false;
-
-    let lost =
-      false;
-
-    for (
-      const item of coupon.matches
-    ) {
-
-      const row =
-        item.row;
-
-      const status =
-        matchStatus(row);
-
-      /*
-        Canlı / başlamamış
-      */
-
-      if (
-        status === "live" ||
-        status === "not_started"
-      ) {
-
-        pending = true;
-
-        continue;
-      }
-
-      /*
-        Skor yok
-      */
-
-      const ft =
-        getFTScore(row);
-
-      if (!ft) {
-
-        pending = true;
-
-        continue;
-      }
-
-      /*
-        Sonuç hesapla
-      */
-
-      const actual =
-        result(
-          row,
-          item.prediction.market
-        );
-
-      if (!actual) {
-
-        pending = true;
-
-        continue;
-      }
-
-      if (
-        actual !==
-        item.prediction.result
-      ) {
-
-        lost = true;
-      }
-    }
-
-    if (lost) {
-
-      return [
-        "lost",
-        "Kaybetti"
-      ];
-    }
-
-    if (pending) {
-
-      return [
-        "pending",
-        "Bekliyor"
-      ];
-    }
-
-    return [
-      "won",
-      "Kazandı"
-    ];
-  }
-
-  /* =========================================================
-     MAÇ SATIRI
-  ========================================================= */
-
-  function renderPrediction(
-    item
-  ) {
-
-    const prediction =
+    const p =
       item.prediction;
 
     const row =
       item.row;
 
-    let stateClass =
+    const ft =
+      getFT(row);
+
+    let cls =
       "pending";
 
     let icon =
       "•";
-
-    const ft =
-      getFTScore(row);
 
     if (ft) {
 
       const actual =
         result(
           row,
-          prediction.market
+          p.market
         );
 
       if (
         actual ===
-        prediction.result
+        p.result
       ) {
 
-        stateClass =
-          "won";
-
-        icon =
-          "✓";
+        cls = "won";
+        icon = "✓";
 
       } else if (actual) {
 
-        stateClass =
-          "lost";
-
-        icon =
-          "✕";
+        cls = "lost";
+        icon = "✕";
       }
     }
 
@@ -2363,33 +1716,19 @@
         <div class="match-info">
 
           <div class="match-teams">
-
-            ${escape(
-              row?.home ||
-              "-"
-            )}
-
+            ${esc(row?.home || "-")}
             -
-
-            ${escape(
-              row?.away ||
-              "-"
-            )}
-
+            ${esc(row?.away || "-")}
           </div>
 
           <div class="match-meta">
 
-            ${escape(
-              row?.time ||
-              ""
-            )}
+            ${esc(row?.time || "")}
 
             ${
               row?.league
-                ? ` · ${escape(
-                    row.league
-                  )}`
+                ? " · " +
+                  esc(row.league)
                 : ""
             }
 
@@ -2409,35 +1748,30 @@
 
         <div class="prediction">
 
-          <span
-            class="result-icon ${stateClass}"
-          >
+          <span class="result-icon ${cls}">
             ${icon}
           </span>
 
           <div>
 
             <div class="prediction-name">
-
-              ${escape(
-                prediction.name
-              )}
-
+              ${esc(p.name)}
             </div>
 
             <div class="prediction-odd">
-
-              ${prediction.odd.toFixed(2)}
-
+              ${p.odd.toFixed(2)}
             </div>
 
             <div class="prediction-rate">
 
               ${
-                prediction.sample
-                  ? `%${prediction.percentage.toFixed(1)}
-                     ·
-                     ${prediction.wins}/${prediction.sample}`
+                p.sample
+                  ? "%" +
+                    p.percentage.toFixed(1) +
+                    " · " +
+                    p.wins +
+                    "/" +
+                    p.sample
                   : "Geçmiş eşleşme yok"
               }
 
@@ -2451,9 +1785,9 @@
     `;
   }
 
-  /* =========================================================
-     KUPON HTML
-  ========================================================= */
+  /* =======================================================
+     COUPON HTML
+  ======================================================= */
 
   function renderCoupon(
     coupon,
@@ -2465,40 +1799,30 @@
       statusClass,
       statusText
     ] =
-      statusForCoupon(
+      couponStatus(
         coupon
       );
 
     return `
 
-      <div
-        class="coupon-card ${statusClass}"
-      >
+      <div class="coupon-card ${statusClass}">
 
         <div class="coupon-header">
 
           <div>
 
             <div class="coupon-name">
-
-              ${icon}
-              ${title}
-
+              ${icon} ${title}
             </div>
 
             <div class="coupon-count">
-
-              ${coupon.matches.length}
-              maç
-
+              ${coupon.matches.length} maç
             </div>
 
           </div>
 
           <div class="coupon-status">
-
             ${statusText}
-
           </div>
 
         </div>
@@ -2506,29 +1830,23 @@
         <div class="coupon-total">
 
           <b>
-
             Toplam oran:
             ${coupon.totalOdds.toFixed(2)}
-
           </b>
 
         </div>
 
-        ${
-          coupon.matches
-            .map(
-              renderPrediction
-            )
-            .join("")
-        }
+        ${coupon.matches
+          .map(renderPrediction)
+          .join("")}
 
       </div>
     `;
   }
 
-  /* =========================================================
-     EKRANA BAS
-  ========================================================= */
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   function render(
     date,
@@ -2536,9 +1854,7 @@
   ) {
 
     const output =
-      el(
-        "couponResults"
-      );
+      el("couponResults");
 
     if (!output) {
       return;
@@ -2547,25 +1863,23 @@
     if (!date) {
 
       output.innerHTML = `
-
         <div class="card empty">
-
           Kupon tarihi seçin.
-
         </div>
-
       `;
 
       return;
     }
 
+    /*
+      Aynı tarihi gereksiz yere
+      tekrar hesaplama.
+    */
+
     if (
       !force &&
-      state.renderedDate ===
-        date &&
-      output.innerHTML
+      state.renderedDate === date
     ) {
-
       return;
     }
 
@@ -2573,222 +1887,337 @@
       date;
 
     output.innerHTML = `
-
       <div class="loading-coupon">
-
         Kuponlar hazırlanıyor…
-
       </div>
-
     `;
 
-    requestAnimationFrame(
+    /*
+      Tarayıcıya ekranı çizmesi için
+      fırsat ver.
+    */
+
+    setTimeout(
       function () {
 
-        const items =
-          candidates(date);
+        try {
 
-        if (!items.length) {
+          const items =
+            candidates(date);
 
-          output.innerHTML = `
+          if (!items.length) {
 
-            <div class="no-coupon">
+            output.innerHTML = `
+              <div class="no-coupon">
 
-              <div class="no-coupon-title">
+                <div class="no-coupon-title">
+                  Bu tarih için kupon
+                  oluşturulamadı.
+                </div>
 
-                Bu tarih için kupon
-                oluşturulamadı.
+                <div class="muted">
+                  Tahmin üretilebilecek
+                  maç bulunamadı.
+                </div>
 
               </div>
+            `;
 
-              <div class="muted">
-
-                Tahmin üretilebilecek
-                maç bulunamadı.
-
-              </div>
-
-            </div>
-
-          `;
-
-          return;
-        }
-
-        const blocked =
-          new Set();
-
-        const types = [
-
-          [
-            "safe",
-            "Güvenli",
-            "🟢"
-          ],
-
-          [
-            "medium",
-            "Orta Güvenli",
-            "🟡"
-          ],
-
-          [
-            "risk",
-            "Risk Alınabilir",
-            "🔴"
-          ]
-
-        ];
-
-        const coupons = [];
-
-        for (
-          const [
-            type,
-            name,
-            icon
-          ] of types
-        ) {
-
-          const coupon =
-            buildCoupon(
-              items,
-              type,
-              blocked
-            );
-
-          if (!coupon) {
-            continue;
+            return;
           }
 
-          coupons.push(
-            renderCoupon(
-              coupon,
-              name,
-              icon
-            )
-          );
+          const blocked =
+            new Set();
 
-          coupon.matches.forEach(
-            function (item) {
+          const types = [
+
+            [
+              "safe",
+              "Güvenli",
+              "🟢"
+            ],
+
+            [
+              "medium",
+              "Orta Güvenli",
+              "🟡"
+            ],
+
+            [
+              "risk",
+              "Risk Alınabilir",
+              "🔴"
+            ]
+
+          ];
+
+          const html = [];
+
+          for (
+            const [
+              type,
+              title,
+              icon
+            ] of types
+          ) {
+
+            const coupon =
+              buildCoupon(
+                items,
+                type,
+                blocked
+              );
+
+            if (!coupon) {
+              continue;
+            }
+
+            html.push(
+              renderCoupon(
+                coupon,
+                title,
+                icon
+              )
+            );
+
+            for (
+              const item of
+              coupon.matches
+            ) {
 
               blocked.add(
                 matchId(
                   item.row
                 )
               );
-
             }
-          );
-        }
-
-        if (
-          coupons.length
-        ) {
+          }
 
           output.innerHTML =
-            coupons.join("");
+            html.length
+              ? html.join("")
+              : `
+                <div class="no-coupon">
+                  2.00 ve üzeri kupon bulunamadı.
+                </div>
+              `;
 
-        } else {
+        } catch (error) {
+
+          console.error(
+            "Kupon oluşturma hatası:",
+            error
+          );
 
           output.innerHTML = `
-
             <div class="no-coupon">
-
-              <div class="no-coupon-title">
-
-                2.00 ve üzeri kupon
-                bulunamadı.
-
-              </div>
-
-              <div class="muted">
-
-                Tek kupon şartı toplam
-                oranın en az 2.00 olmasıdır.
-
-              </div>
-
+              Kupon oluşturulurken hata oluştu.
             </div>
-
           `;
         }
 
-      }
+      },
+      0
     );
   }
 
-  /* =========================================================
-     SKORLARI YENİLE
-  ========================================================= */
+  /* =======================================================
+     SADECE SKOR DURUMUNU YENİLE
+  ======================================================= */
 
-  async function refreshScores() {
-
-    await loadMackolikScores();
-
-    /*
-      Skor geldikten sonra
-      geçmiş cache'lerini de temizle.
-    */
-
-    state.candidatesByDate.clear();
-
-    /*
-      Sadece bugünün skor değişimi için
-      ekranı tekrar çiz.
-    */
+  function refreshVisibleCoupon() {
 
     const input =
       el("couponDate");
 
-    if (
-      input?.value
-    ) {
-
-      state.renderedDate =
-        "";
-
-      render(
-        input.value,
-        true
-      );
+    if (!input?.value) {
+      return;
     }
+
+    /*
+      Skor geldiğinde adaylar yeniden
+      hesaplanmalı çünkü oynanan maç
+      artık aday olmamalı.
+    */
+
+    state.candidatesByDate.delete(
+      input.value
+    );
+
+    state.renderedDate = "";
+
+    render(
+      input.value,
+      true
+    );
   }
 
-  /* =========================================================
-     EVENTLER
-  ========================================================= */
+  /* =======================================================
+     TARİH DEĞİŞTİR
+  ======================================================= */
 
-  [
-    "oran-data-ready",
-    "score-updated",
-    "scores-updated",
-    "mackolik-data-updated",
-    "matches-updated"
-  ].forEach(
-    function (eventName) {
+  function changeDate(date) {
 
-      window.addEventListener(
-        eventName,
+    /*
+      SADECE SEÇİLEN TARİHİ TEMİZLE.
+      60 günlük tüm cache'i temizleme.
+    */
+
+    state.candidatesByDate.delete(
+      date
+    );
+
+    state.statsByDate.delete(
+      date
+    );
+
+    state.historyByDate.delete(
+      date
+    );
+
+    state.renderedDate = "";
+
+    render(
+      date,
+      true
+    );
+  }
+
+  /* =======================================================
+     SETUP
+  ======================================================= */
+
+  function setup() {
+
+    const input =
+      el("couponDate");
+
+    if (!input) {
+      return;
+    }
+
+    buildDateIndex();
+
+    const dates =
+      Array.from(
+        state.byDate.keys()
+      ).sort();
+
+    if (!dates.length) {
+
+      input.value = "";
+
+      render("");
+
+      return;
+    }
+
+    input.min =
+      dates[0];
+
+    input.max =
+      dates[
+        dates.length - 1
+      ];
+
+    const t =
+      today();
+
+    input.value =
+      state.byDate.has(t)
+        ? t
+        : dates[
+            dates.length - 1
+          ];
+
+    /*
+      Eski onchange'i
+      tekrar tekrar oluşturmamak için
+      bir kez bağla.
+    */
+
+    if (
+      !input.dataset.couponBound
+    ) {
+
+      input.dataset.couponBound =
+        "1";
+
+      input.addEventListener(
+        "change",
         function () {
 
-          buildDateIndex();
-
-          state.historyByDate.clear();
-          state.statsByDate.clear();
-          state.candidatesByDate.clear();
-
-          refreshScores();
+          changeDate(
+            input.value
+          );
 
         }
       );
+    }
+
+    render(
+      input.value,
+      true
+    );
+
+    /*
+      Skorları arka planda yükle.
+    */
+
+    loadScores();
+
+    /*
+      Tek interval.
+    */
+
+    if (!state.timer) {
+
+      state.timer =
+        setInterval(
+          function () {
+
+            if (
+              document.visibilityState ===
+              "visible"
+            ) {
+
+              loadScores();
+
+            }
+
+          },
+          SCORE_REFRESH_MS
+        );
+    }
+  }
+
+  /* =======================================================
+     EVENT
+  ======================================================= */
+
+  window.addEventListener(
+    "oran-data-ready",
+    function () {
+
+      /*
+        ORAN_DATA değiştiyse
+        tarih indeksini yenile.
+      */
+
+      state.byDate.clear();
+
+      state.historyByDate.clear();
+
+      state.statsByDate.clear();
+
+      state.candidatesByDate.clear();
+
+      state.renderedDate = "";
+
+      setup();
 
     }
   );
-
-  /* =========================================================
-     SAYFA GERİ GELDİĞİNDE
-  ========================================================= */
 
   document.addEventListener(
     "visibilitychange",
@@ -2799,142 +2228,22 @@
         "visible"
       ) {
 
-        refreshScores();
+        loadScores();
 
       }
 
     }
   );
 
-  window.addEventListener(
-    "focus",
-    function () {
-
-      refreshScores();
-
-    }
-  );
-
-  /* =========================================================
-     KURULUM
-  ========================================================= */
-
-  function setup() {
-
-    const dateInput =
-      el("couponDate");
-
-    if (!dateInput) {
-      return;
-    }
-
-    buildDateIndex();
-
-    const dates =
-      [
-        ...state.byDate.keys()
-      ].sort();
-
-    if (!dates.length) {
-
-      dateInput.value =
-        "";
-
-      render("");
-
-      return;
-    }
-
-    dateInput.min =
-      dates[0];
-
-    dateInput.max =
-      dates[
-        dates.length - 1
-      ];
-
-    const today =
-      todayKey();
-
-    dateInput.value =
-      state.byDate.has(today)
-        ? today
-        : dates[
-            dates.length - 1
-          ];
-
-    dateInput.onchange =
-      function () {
-
-        state.renderedDate =
-          "";
-
-        state.candidatesByDate.delete(
-          dateInput.value
-        );
-
-        render(
-          dateInput.value,
-          true
-        );
-      };
-
-    render(
-      dateInput.value,
-      true
-    );
-
-    /*
-      İlk skor çekimi
-    */
-
-    refreshScores();
-
-    /*
-      30 saniyede bir skor kontrolü.
-      Yeni dosya oluşturulmaz.
-    */
-
-    if (
-      !state.refreshTimer
-    ) {
-
-      state.refreshTimer =
-        setInterval(
-          function () {
-
-            /*
-              Sadece sayfa görünürken
-              çalışsın.
-            */
-
-            if (
-              document.visibilityState !==
-              "visible"
-            ) {
-              return;
-            }
-
-            refreshScores();
-
-          },
-          SCORE_REFRESH_MS
-        );
-    }
-  }
-
-  /* =========================================================
+  /* =======================================================
      CSS
-  ========================================================= */
+  ======================================================= */
 
   function addStyles() {
 
     if (
-      document.getElementById(
-        "fast-coupon-css"
-      )
+      el("fast-coupon-css")
     ) {
-
       return;
     }
 
@@ -2947,21 +2256,6 @@
       "fast-coupon-css";
 
     style.textContent = `
-
-      .coupon-date-box {
-        margin-top: 14px;
-      }
-
-      .coupon-date-box label {
-        display: block;
-        font-size: 12px;
-        color: #9ba6bf;
-        margin-bottom: 6px;
-      }
-
-      .coupon-date-box input {
-        max-width: 260px;
-      }
 
       .coupon-card {
         margin: 14px 0;
@@ -2987,8 +2281,8 @@
       .coupon-header {
         display: flex;
         justify-content: space-between;
-        gap: 10px;
         align-items: center;
+        gap: 10px;
         margin-bottom: 10px;
       }
 
@@ -3144,9 +2438,9 @@
     );
   }
 
-  /* =========================================================
-     BAŞLAT
-  ========================================================= */
+  /* =======================================================
+     INIT
+  ======================================================= */
 
   function init() {
 
@@ -3175,9 +2469,9 @@
 
   }
 
-  /* =========================================================
+  /* =======================================================
      DIŞARIDAN ERİŞİM
-  ========================================================= */
+  ======================================================= */
 
   window.oranAnalizCoupon = {
 
@@ -3186,10 +2480,11 @@
     setup,
 
     refresh:
-      refreshScores,
+      loadScores,
 
-    loadScores:
-      loadMackolikScores,
+    loadScores,
+
+    changeDate,
 
     state
 
