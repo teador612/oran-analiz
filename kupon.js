@@ -5,14 +5,18 @@
 
    - Kupon oluştur butonu YOK
    - Tarih seçildiğinde otomatik çalışır
-   - Tarih bazlı indeks
-   - 60 günlük geçmiş cache
-   - Oran + market istatistikleri cache
+   - 60 günlük geçmiş
    - Maksimum 5 maç
    - Tek zorunlu şart: toplam oran >= 2.00
    - 🟢 Güvenli
    - 🟡 Orta Güvenli
    - 🔴 Risk Alınabilir
+
+   SKOR:
+   - Ayrı skor dosyası YOK
+   - Mevcut ORAN_DATA içindeki skor kullanılır
+   - score / scoreFT / fullTimeScore
+   - halfTimeScore / scoreHT / ht desteklenir
 ========================================================= */
 
 (function () {
@@ -116,7 +120,7 @@
   }
 
   /* =========================================================
-     HTML ESCAPE
+     ESCAPE
   ========================================================= */
 
   function escape(value) {
@@ -148,7 +152,7 @@
   }
 
   /* =========================================================
-     TARİHİ YYYY-MM-DD YAP
+     TARİH
   ========================================================= */
 
   function dateKey(value) {
@@ -246,7 +250,7 @@
   }
 
   /* =========================================================
-     MARKETLERİ AL
+     MARKETLER
   ========================================================= */
 
   function getMarkets() {
@@ -277,30 +281,261 @@
   }
 
   /* =========================================================
+     SKOR PARSE
+
+     Şunların tamamını destekler:
+
+     "2-1"
+     "2:1"
+
+     {
+       home: 2,
+       away: 1
+     }
+
+     {
+       home: "2",
+       away: "1"
+     }
+  ========================================================= */
+
+  function parseScore(value) {
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return null;
+    }
+
+    if (
+      typeof value === "object"
+    ) {
+
+      const home =
+        number(
+          value.home ??
+          value.homeScore ??
+          value.homeTeam ??
+          value.h
+        );
+
+      const away =
+        number(
+          value.away ??
+          value.awayScore ??
+          value.awayTeam ??
+          value.a
+        );
+
+      if (
+        home !== null &&
+        away !== null
+      ) {
+        return {
+          home,
+          away
+        };
+      }
+
+      return null;
+    }
+
+    const match =
+      String(value)
+        .trim()
+        .match(
+          /(\d+)\s*[-:]\s*(\d+)/
+        );
+
+    if (!match) {
+      return null;
+    }
+
+    return {
+      home: Number(match[1]),
+      away: Number(match[2])
+    };
+  }
+
+  /* =========================================================
+     FULL TIME SKORU
+
+     Bugünün maçlarında hangi alan kullanılıyorsa
+     buradan yakalanır.
+  ========================================================= */
+
+  function getFTScore(row) {
+
+    const candidates = [
+
+      row?.scoreFT,
+
+      row?.fullTimeScore,
+
+      row?.ftScore,
+
+      row?.score?.fullTime,
+
+      row?.score?.ft,
+
+      row?.score
+
+    ];
+
+    for (const value of candidates) {
+
+      const score =
+        parseScore(value);
+
+      if (score) {
+        return score;
+      }
+    }
+
+    return null;
+  }
+
+  /* =========================================================
+     İLK YARI SKORU
+  ========================================================= */
+
+  function getHTScore(row) {
+
+    const candidates = [
+
+      row?.scoreHT,
+
+      row?.halfTimeScore,
+
+      row?.htScore,
+
+      row?.score?.halfTime,
+
+      row?.score?.ht,
+
+      row?.halfTime
+
+    ];
+
+    for (const value of candidates) {
+
+      const score =
+        parseScore(value);
+
+      if (score) {
+        return score;
+      }
+    }
+
+    return null;
+  }
+
+  /* =========================================================
+     MAÇ DURUMU
+
+     Özellikle:
+
+     played:false
+     + skor 0-0
+
+     durumunda maç oynanmış kabul edilmez.
+  ========================================================= */
+
+  function matchStatus(row) {
+
+    const status =
+      String(
+        row?.status ??
+        row?.matchStatus ??
+        row?.state ??
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      status === "finished" ||
+      status === "finished_final" ||
+      status === "ft" ||
+      status === "ended" ||
+      status === "completed" ||
+      status === "final"
+    ) {
+      return "finished";
+    }
+
+    if (
+      status === "live" ||
+      status === "playing" ||
+      status === "inplay" ||
+      status === "in-play"
+    ) {
+      return "live";
+    }
+
+    if (
+      status === "not_started" ||
+      status === "not-started" ||
+      status === "scheduled" ||
+      status === "upcoming"
+    ) {
+      return "not_started";
+    }
+
+    if (row?.played === true) {
+      return "finished";
+    }
+
+    if (row?.played === false) {
+      return "not_started";
+    }
+
+    return "";
+  }
+
+  /* =========================================================
      OYNANMIŞ MI?
   ========================================================= */
 
   function played(row) {
 
-    if (row?.played === true) {
+    const status =
+      matchStatus(row);
+
+    if (
+      status === "finished"
+    ) {
       return true;
     }
 
-    if (row?.played === false) {
+    if (
+      status === "live" ||
+      status === "not_started"
+    ) {
       return false;
     }
 
-    return Boolean(
-      String(row?.scoreFT ?? "")
-        .match(/\d+\s*[-:]\s*\d+/)
-    );
+    const ft =
+      getFTScore(row);
+
+    return Boolean(ft);
   }
 
   /* =========================================================
      SONUÇ
+
+     MS -> FT
+     İY -> HT
   ========================================================= */
 
   function result(row, key) {
+
+    /*
+      Eğer data.js zaten hazır sonuç veriyorsa
+      önce onu kullan.
+    */
 
     if (
       row?.results &&
@@ -309,29 +544,70 @@
       return row.results[key];
     }
 
-    const ht = String(
-      row?.scoreHT ?? ""
-    ).match(/(\d+)\s*[-:]\s*(\d+)/);
+    /*
+      İlk yarı marketleri için
+      HT skoru gerekir.
+    */
 
-    const ft = String(
-      row?.scoreFT ?? ""
-    ).match(/(\d+)\s*[-:]\s*(\d+)/);
+    const ht =
+      getHTScore(row);
 
-    if (!ht || !ft) {
+    /*
+      Maç sonucu marketleri için
+      FT skoru gerekir.
+    */
+
+    const ft =
+      getFTScore(row);
+
+    const needsHT =
+      key === "iy1" ||
+      key === "iy0" ||
+      key === "iy2" ||
+      key === "iyOver05" ||
+      key === "iyUnder05" ||
+      key === "iyOver15" ||
+      key === "iyUnder15" ||
+      key === "iyKgVar";
+
+    if (
+      needsHT &&
+      !ht
+    ) {
       return "";
     }
 
-    const h = Number(ht[1]);
-    const a = Number(ht[2]);
+    if (
+      !needsHT &&
+      !ft
+    ) {
+      return "";
+    }
 
-    const x = Number(ft[1]);
-    const y = Number(ft[2]);
+    const h =
+      ht?.home ?? 0;
 
-    const firstHalfTotal = h + a;
-    const total = x + y;
+    const a =
+      ht?.away ?? 0;
+
+    const x =
+      ft?.home ?? 0;
+
+    const y =
+      ft?.away ?? 0;
+
+    const firstHalfTotal =
+      h + a;
+
+    const total =
+      x + y;
+
+    /* -------------------------
+       MAÇ SONUCU
+    ------------------------- */
 
     if (key === "ms1") {
-      return x > y ? "1" : "";
+      return x > y ? "1" : "X";
     }
 
     if (key === "ms0") {
@@ -341,6 +617,10 @@
     if (key === "ms2") {
       return x < y ? "2" : "";
     }
+
+    /* -------------------------
+       İLK YARI SONUCU
+    ------------------------- */
 
     if (key === "iy1") {
       return h > a ? "1" : "";
@@ -354,44 +634,79 @@
       return h < a ? "2" : "";
     }
 
-    if (
-      key === "kgVar" ||
-      key === "iyKgVar"
-    ) {
-      return h > 0 && a > 0
+    /* -------------------------
+       KG
+    ------------------------- */
+
+    if (key === "kgVar") {
+      return x > 0 && y > 0
         ? "VAR"
-        : "";
+        : "YOK";
     }
 
     if (key === "kgYok") {
-      return h > 0 && a > 0
-        ? ""
+      return x > 0 && y > 0
+        ? "VAR"
         : "YOK";
     }
+
+    if (key === "iyKgVar") {
+      return h > 0 && a > 0
+        ? "VAR"
+        : "YOK";
+    }
+
+    /* -------------------------
+       İY 0.5
+    ------------------------- */
 
     if (key === "iyOver05") {
       return firstHalfTotal > 0.5
         ? "ÜST"
-        : "";
+        : "ALT";
     }
 
     if (key === "iyUnder05") {
       return firstHalfTotal <= 0.5
         ? "ALT"
-        : "";
+        : "ÜST";
     }
+
+    /* -------------------------
+       İY 1.5
+    ------------------------- */
 
     if (key === "iyOver15") {
       return firstHalfTotal > 1.5
         ? "ÜST"
-        : "";
+        : "ALT";
     }
 
     if (key === "iyUnder15") {
       return firstHalfTotal <= 1.5
         ? "ALT"
-        : "";
+        : "ÜST";
     }
+
+    /* -------------------------
+       MS 1.5
+    ------------------------- */
+
+    if (key === "msOver15") {
+      return total > 1.5
+        ? "ÜST"
+        : "ALT";
+    }
+
+    if (key === "msUnder15") {
+      return total <= 1.5
+        ? "ALT"
+        : "ÜST";
+    }
+
+    /* -------------------------
+       MS 2.5
+    ------------------------- */
 
     if (
       key === "over25" ||
@@ -399,7 +714,7 @@
     ) {
       return total > 2.5
         ? "ÜST"
-        : "";
+        : "ALT";
     }
 
     if (
@@ -408,43 +723,39 @@
     ) {
       return total <= 2.5
         ? "ALT"
-        : "";
+        : "ÜST";
     }
 
-    if (key === "msOver15") {
-      return total > 1.5
-        ? "ÜST"
-        : "";
-    }
-
-    if (key === "msUnder15") {
-      return total <= 1.5
-        ? "ALT"
-        : "";
-    }
+    /* -------------------------
+       MS 3.5
+    ------------------------- */
 
     if (key === "msOver35") {
       return total > 3.5
         ? "ÜST"
-        : "";
+        : "ALT";
     }
 
     if (key === "msUnder35") {
       return total <= 3.5
         ? "ALT"
-        : "";
+        : "ÜST";
     }
+
+    /* -------------------------
+       GOL ATAR
+    ------------------------- */
 
     if (key === "evGoal") {
       return x > 0
         ? "VAR"
-        : "";
+        : "YOK";
     }
 
     if (key === "depGoal") {
       return y > 0
         ? "VAR"
-        : "";
+        : "YOK";
     }
 
     return "";
@@ -459,6 +770,7 @@
     return String(
       row?.id ??
       row?.matchId ??
+      row?.mackolikId ??
       `${row?.home ?? ""}|` +
       `${row?.away ?? ""}|` +
       `${dateKey(row?.date)}|` +
@@ -467,10 +779,42 @@
   }
 
   /* =========================================================
-     TARİH İNDEKSİ
+     SKORU GÖSTER
+  ========================================================= */
 
-     DATA'yı her seferinde taramak yerine
-     tarih -> maçlar şeklinde Map oluşturuyoruz.
+  function scoreText(row) {
+
+    const ft =
+      getFTScore(row);
+
+    const ht =
+      getHTScore(row);
+
+    if (!ft) {
+      return "";
+    }
+
+    if (ht) {
+      return `
+        <span class="coupon-score">
+          ${ht.home}-${ht.away}
+          İY
+          ·
+          ${ft.home}-${ft.away}
+          MS
+        </span>
+      `;
+    }
+
+    return `
+      <span class="coupon-score">
+        ${ft.home}-${ft.away}
+      </span>
+    `;
+  }
+
+  /* =========================================================
+     TARİH İNDEKSİ
   ========================================================= */
 
   function buildDateIndex() {
@@ -486,14 +830,18 @@
 
     for (const row of data) {
 
-      const key = dateKey(row?.date);
+      const key =
+        dateKey(row?.date);
 
       if (!key) {
         continue;
       }
 
       if (!state.byDate.has(key)) {
-        state.byDate.set(key, []);
+        state.byDate.set(
+          key,
+          []
+        );
       }
 
       state.byDate
@@ -504,14 +852,14 @@
 
   /* =========================================================
      60 GÜNLÜK GEÇMİŞ
-
-     Her tarih için yalnızca bir kez hazırlanır.
   ========================================================= */
 
   function getHistory(targetDate) {
 
     if (
-      state.historyByDate.has(targetDate)
+      state.historyByDate.has(
+        targetDate
+      )
     ) {
       return state.historyByDate.get(
         targetDate
@@ -566,7 +914,7 @@
   }
 
   /* =========================================================
-     CACHE SINIRLA
+     CACHE
   ========================================================= */
 
   function trimCache(map) {
@@ -583,12 +931,7 @@
   }
 
   /* =========================================================
-     ORAN İSTATİSTİKLERİ
-
-     Her oran için:
-
-     oran -> sample
-          -> wins
+     İSTATİSTİK
   ========================================================= */
 
   function buildStats(targetDate) {
@@ -606,16 +949,21 @@
     const history =
       getHistory(targetDate);
 
-    const maps = new Map();
+    const maps =
+      new Map();
 
     for (const market of getMarkets()) {
 
-      const oddsMap = new Map();
+      const oddsMap =
+        new Map();
 
       for (const row of history) {
 
         const odd =
-          getOdd(row, market);
+          getOdd(
+            row,
+            market
+          );
 
         if (odd === null) {
           continue;
@@ -681,9 +1029,6 @@
 
   /* =========================================================
      ADAYLAR
-
-     Tarihteki oynanmamış maçları
-     yalnızca bir kere değerlendir.
   ========================================================= */
 
   function candidates(targetDate) {
@@ -799,7 +1144,7 @@
   }
 
   /* =========================================================
-     ADAY PUANLAMA
+     PUAN
   ========================================================= */
 
   function score(
@@ -810,30 +1155,23 @@
     if (type === "safe") {
 
       return (
-        prediction.percentage *
-          1.0 +
-
+        prediction.percentage +
         Math.min(
           prediction.sample,
           30
         ) * 0.35 -
-
-        prediction.odd *
-          0.02
+        prediction.odd * 0.02
       );
     }
 
     if (type === "medium") {
 
       return (
-        prediction.percentage *
-          0.70 +
-
+        prediction.percentage * 0.70 +
         Math.min(
           prediction.odd,
           3
         ) * 10 +
-
         Math.min(
           prediction.sample,
           20
@@ -842,12 +1180,8 @@
     }
 
     return (
-      prediction.odd *
-        12 +
-
-      prediction.percentage *
-        0.35 +
-
+      prediction.odd * 12 +
+      prediction.percentage * 0.35 +
       Math.min(
         prediction.sample,
         20
@@ -865,26 +1199,21 @@
   ) {
 
     if (type === "safe") {
-      return (
-        prediction.percentage >= 80
-      );
+      return prediction.percentage >= 80;
     }
 
     if (type === "medium") {
-
       return (
         prediction.percentage >= 65 &&
         prediction.percentage < 80
       );
     }
 
-    return (
-      prediction.percentage < 65
-    );
+    return prediction.percentage < 65;
   }
 
   /* =========================================================
-     MAÇ İÇİN EN İYİ TAHMİN
+     MAÇIN EN İYİ TAHMİNİ
   ========================================================= */
 
   function bestForMatch(
@@ -915,13 +1244,7 @@
   }
 
   /* =========================================================
-     KUPON OLUŞTUR
-
-     Önemli:
-     Kombinasyon patlaması yok.
-
-     Sıralanmış adaylardan ilerliyor.
-     Toplam 2.00'a ulaştığında duruyor.
+     KUPON
   ========================================================= */
 
   function buildCoupon(
@@ -1022,6 +1345,10 @@
 
   /* =========================================================
      KUPON DURUMU
+
+     lost varsa -> Kaybetti
+     tüm maçlar bittiyse -> Kazandı
+     aksi -> Bekliyor
   ========================================================= */
 
   function statusForCoupon(
@@ -1091,9 +1418,7 @@
      MAÇ HTML
   ========================================================= */
 
-  function renderPrediction(
-    item
-  ) {
+  function renderPrediction(item) {
 
     const prediction =
       item.prediction;
@@ -1145,14 +1470,28 @@
           </div>
 
           <div class="match-meta">
+
             ${escape(
               row?.time || ""
             )}
-            ·
-            ${escape(
-              row?.league || ""
-            )}
+
+            ${
+              row?.league
+                ? ` · ${escape(row.league)}`
+                : ""
+            }
+
           </div>
+
+          ${
+            scoreText(row)
+              ? `
+                <div class="coupon-score-wrap">
+                  ${scoreText(row)}
+                </div>
+              `
+              : ""
+          }
 
         </div>
 
@@ -1264,7 +1603,7 @@
      EKRANA BAS
   ========================================================= */
 
-  function render(date) {
+  function render(date, force) {
 
     const output =
       el("couponResults");
@@ -1285,11 +1624,14 @@
     }
 
     /*
-      Aynı tarih zaten oluşturulduysa
-      tekrar hesaplama.
+      Skorlar sonradan güncellenmiş olabilir.
+
+      force=true olduğunda
+      sadece ekran tekrar oluşturulur.
     */
 
     if (
+      !force &&
       state.renderedDate === date &&
       output.innerHTML
     ) {
@@ -1303,11 +1645,6 @@
         Kuponlar hazırlanıyor…
       </div>
     `;
-
-    /*
-      UI'nin donmasını engellemek için
-      ağır hesaplamayı bir sonraki frame'e bırak.
-    */
 
     requestAnimationFrame(() => {
 
@@ -1385,12 +1722,11 @@
         );
 
         coupon.matches.forEach(
-          item =>
+          item => {
             blocked.add(
-              matchId(
-                item.row
-              )
-            )
+              matchId(item.row)
+            );
+          }
         );
       }
 
@@ -1418,6 +1754,70 @@
       }
     });
   }
+
+  /* =========================================================
+     SKOR GÜNCELLENDİĞİNDE KUPONU YENİLE
+  ========================================================= */
+
+  function refreshCurrentCoupon() {
+
+    const dateInput =
+      el("couponDate");
+
+    if (!dateInput?.value) {
+      return;
+    }
+
+    /*
+      Kuponun kendisi değişmesin.
+      Sadece skor durumunu tekrar hesaplayalım.
+    */
+
+    render(
+      dateInput.value,
+      true
+    );
+  }
+
+  /*
+    Bugünün maçları / data.js tarafında
+    bu eventlerden biri kullanılıyorsa
+    otomatik yenilenir.
+  */
+
+  [
+    "oran-data-ready",
+    "score-updated",
+    "scores-updated",
+    "mackolik-data-updated",
+    "matches-updated"
+  ].forEach(eventName => {
+
+    window.addEventListener(
+      eventName,
+      refreshCurrentCoupon
+    );
+
+  });
+
+  /*
+    Kullanıcı kupon sekmesine geri dönerse
+    skorları tekrar kontrol et.
+  */
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+        refreshCurrentCoupon();
+      }
+
+    }
+  );
 
   /* =========================================================
      KURULUM
@@ -1453,11 +1853,6 @@
     dateInput.max =
       dates[dates.length - 1];
 
-    /*
-      Bugün varsa bugün.
-      Yoksa veri içindeki son tarih.
-    */
-
     const today =
       new Date();
 
@@ -1475,11 +1870,6 @@
         ? todayKey
         : dates[dates.length - 1];
 
-    /*
-      BUTON YOK.
-      Tarih değiştiği anda çalışır.
-    */
-
     dateInput.onchange =
       () => {
 
@@ -1487,22 +1877,19 @@
           "";
 
         render(
-          dateInput.value
+          dateInput.value,
+          true
         );
       };
 
-    /*
-      Sayfa açıldığında
-      otomatik çalıştır.
-    */
-
     render(
-      dateInput.value
+      dateInput.value,
+      true
     );
   }
 
   /* =========================================================
-     KUPON CSS
+     CSS
   ========================================================= */
 
   function addStyles() {
@@ -1614,6 +2001,20 @@
         margin-top: 4px;
       }
 
+      .coupon-score-wrap {
+        margin-top: 6px;
+      }
+
+      .coupon-score {
+        display: inline-block;
+        padding: 3px 7px;
+        border-radius: 6px;
+        background: #18243a;
+        color: #d9e3f5;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
       .prediction {
         display: flex;
         align-items: center;
@@ -1708,8 +2109,8 @@
   function init() {
 
     addStyles();
-
     setup();
+
   }
 
   if (
@@ -1728,25 +2129,22 @@
   } else {
 
     init();
-  }
 
-  /*
-    data.js sonradan yükleniyorsa
-    tekrar başlatılabilir.
-  */
+  }
 
   window.addEventListener(
     "oran-data-ready",
     init
   );
 
-  /*
-    Dışarıdan gerekirse erişim.
-  */
+  /* =========================================================
+     DIŞARIDAN ERİŞİM
+  ========================================================= */
 
   window.oranAnalizCoupon = {
     render,
     setup,
+    refresh: refreshCurrentCoupon,
     state
   };
 
